@@ -167,7 +167,7 @@ class FileUploadService {
 
   // Get file URL
   getFileUrl(filename, type = 'gallery') {
-    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+  const baseUrl = process.env.BASE_URL || 'https://inno-backend-y1bv.onrender.com';
     return `${baseUrl}/uploads/${type}/${filename}`;
   }
 }
