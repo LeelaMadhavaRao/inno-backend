@@ -136,7 +136,16 @@ class EmailService {
   // Send faculty invitation with designation-specific templates
   async sendFacultyInvitation({ facultyData, credentials }) {
     const { designation } = facultyData;
-    const isHighRanking = ['HOD', 'Principal'].includes(designation);
+    console.log('📧 Sending faculty invitation for designation:', designation);
+    
+    // Check for high-ranking positions (case-insensitive)
+    const isHighRanking = ['HOD', 'Principal'].includes(designation) || 
+                         designation.toLowerCase().includes('hod') || 
+                         designation.toLowerCase().includes('principal') ||
+                         designation.toLowerCase().includes('head');
+    
+    console.log('🏆 Is high ranking faculty:', isHighRanking);
+    
     const frontendUrl = process.env.FRONTEND_URL || 'https://innoverse-csit.web.app';
     
     let subject, html;
@@ -145,10 +154,12 @@ class EmailService {
       // Special template for HOD and Principal
       subject = `Innoverse 2025 - Distinguished ${designation} Portal Invitation`;
       html = this.generateHighRankingFacultyTemplate(facultyData, credentials, frontendUrl);
+      console.log('✨ Using high-ranking faculty template');
     } else {
-      // Regular template for Assistant Professor and Professor
+      // Regular template for Assistant Professor, Associate Professor, and Professor
       subject = `Innoverse 2025 - Faculty Portal Invitation`;
       html = this.generateRegularFacultyTemplate(facultyData, credentials, frontendUrl);
+      console.log('📚 Using regular faculty template');
     }
 
     return await this.sendEmail({
@@ -160,8 +171,16 @@ class EmailService {
 
   // Template for HOD and Principal
   generateHighRankingFacultyTemplate(facultyData, credentials, frontendUrl) {
-    const designationEmoji = facultyData.designation === 'Principal' ? '🎓👑' : '🏢📋';
-    const honorificTitle = facultyData.designation === 'Principal' ? 'Esteemed Principal' : 'Respected HOD';
+    const designationEmoji = facultyData.designation === 'Principal' ? '🎓👑' : 
+                           facultyData.designation === 'HOD' ? '🏢📋' :
+                           facultyData.designation.toLowerCase().includes('principal') ? '🎓👑' :
+                           '🏢📋';
+    
+    const honorificTitle = facultyData.designation === 'Principal' ? 'Esteemed Principal' : 
+                          facultyData.designation === 'HOD' ? 'Respected HOD' :
+                          facultyData.designation.toLowerCase().includes('principal') ? 'Esteemed Principal' :
+                          facultyData.designation.toLowerCase().includes('hod') || facultyData.designation.toLowerCase().includes('head') ? 'Respected HOD' :
+                          'Distinguished ' + facultyData.designation;
     
     return `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
@@ -178,7 +197,7 @@ class EmailService {
         
         <div style="padding: 40px 30px; background: white;">
           <div style="text-align: center; margin-bottom: 30px;">
-            <h2 style="color: #2c3e50; margin: 0; font-size: 26px;">Dear ${honorificTitle}, ${facultyData.name}! 🙏</h2>
+            <h2 style="color: #2c3e50; margin: 0; font-size: 26px;">Dear ${honorificTitle}, ${facultyData.name} Sir! 🙏</h2>
             <div style="width: 60px; height: 4px; background: linear-gradient(90deg, #3498db, #9b59b6); margin: 15px auto; border-radius: 2px;"></div>
           </div>
           
@@ -276,7 +295,7 @@ class EmailService {
         </div>
         
         <div style="padding: 35px; background: white;">
-          <h2 style="color: #333; margin-bottom: 20px; text-align: center;">Dear ${facultyData.name}! 👋</h2>
+          <h2 style="color: #333; margin-bottom: 20px; text-align: center;">Dear ${facultyData.name} Sir! 👋</h2>
           
           <p style="color: #666; line-height: 1.6; text-align: center; margin-bottom: 25px;">
             We are honored to invite you to be part of Innoverse 2025 as a faculty member. Your expertise in 
