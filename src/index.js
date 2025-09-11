@@ -50,6 +50,13 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Add request logging
+app.use((req, res, next) => {
+  console.log(`🌐 ${req.method} ${req.url} - From: ${req.ip} - User-Agent: ${req.get('User-Agent')?.slice(0, 50)}...`);
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -66,35 +73,68 @@ app.use('/api/poster-launch', posterLaunchRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  console.log('🏥 Health check request received from:', req.ip);
+  
+  // Set explicit CORS headers for health check
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
   res.json({
     success: true,
     message: 'Backend is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    url: req.originalUrl,
+    method: req.method
   });
 });
 
 // Public routes (no auth required)
 app.get('/api/teams', async (req, res) => {
   try {
+    console.log('📊 Teams endpoint request received from:', req.ip);
     console.log('📊 Fetching teams from database...');
+    
+    // Set explicit CORS headers
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    // Add timeout to database query
     const teams = await Team.find({})
       .select('teamName teamLeader teamMembers projectDetails institution evaluationScores finalRank createdAt')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .maxTimeMS(10000); // 10 second timeout
     
     console.log(`✅ Found ${teams.length} teams`);
     res.json({
       success: true,
       data: teams,
-      count: teams.length
+      count: teams.length,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('❌ Error fetching teams:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching teams',
-      error: error.message
-    });
+    
+    // If it's a timeout error, return a simpler response
+    if (error.name === 'MongooseTimeoutError' || error.code === 'ETIMEDOUT') {
+      console.log('⏰ Database timeout, returning empty teams array');
+      res.json({
+        success: true,
+        data: [],
+        count: 0,
+        message: 'Database timeout, please try again',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching teams',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 });
 
