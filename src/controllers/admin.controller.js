@@ -550,84 +550,111 @@ export const getEvaluators = asyncHandler(async (req, res) => {
 // @route   POST /api/admin/evaluators
 // @access  Private/Admin
 export const createEvaluator = asyncHandler(async (req, res) => {
+  console.log('🔄 Creating evaluator with data:', req.body);
+  
   const { name, email, organization, designation, expertise, experience, type } = req.body;
+
+  // Validate required fields
+  if (!name || !email || !organization || !type) {
+    console.log('❌ Missing required fields:', { name: !!name, email: !!email, organization: !!organization, type: !!type });
+    res.status(400);
+    throw new Error('Please provide all required fields: name, email, organization, type');
+  }
 
   // Check if evaluator with this email already exists (same email can exist for different roles)
   const existingUser = await User.findOne({ email, role: 'evaluator' });
   if (existingUser) {
+    console.log('❌ Evaluator with email already exists:', email);
     res.status(400);
     throw new Error('Evaluator account with this email already exists');
   }
 
-  // Generate password
-  const password = crypto.randomBytes(8).toString('hex');
-
-  // Create user account
-  const user = await User.create({
-    name,
-    email,
-    password,
-    role: 'evaluator',
-    createdBy: req.user._id
-  });
-
-  // Create evaluator profile
-  const evaluator = await Evaluator.create({
-    name,
-    email,
-    userId: user._id,
-    organization,
-    designation,
-    expertise: expertise ? expertise.split(',').map(e => e.trim()) : [],
-    experience,
-    type,
-    status: 'active',
-    evaluationCriteria: {
-      innovation: { weight: 20, maxScore: 100 },
-      technical: { weight: 20, maxScore: 100 },
-      business: { weight: 20, maxScore: 100 },
-      presentation: { weight: 20, maxScore: 100 },
-      feasibility: { weight: 20, maxScore: 100 }
-    }
-  });
-
-  // Link evaluator profile to user
-  user.evaluatorProfile = evaluator._id;
-  await user.save();
-
-  // Send invitation email
   try {
-    await getEmailService().sendEvaluatorInvitation({
-      evaluatorData: {
-        name,
-        email,
-        organization,
-        expertise: expertise,
-        type
-      },
-      credentials: {
-        password
+    // Generate password
+    const password = crypto.randomBytes(8).toString('hex');
+    console.log('🔑 Generated password for evaluator:', email);
+
+    // Create user account
+    console.log('👤 Creating user account...');
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: 'evaluator',
+      createdBy: req.user._id
+    });
+    console.log('✅ User account created:', user._id);
+
+    // Create evaluator profile
+    console.log('📋 Creating evaluator profile...');
+    const evaluator = await Evaluator.create({
+      name,
+      email,
+      userId: user._id,
+      organization,
+      designation: designation || '',
+      expertise: expertise ? expertise.split(',').map(e => e.trim()) : [],
+      experience: experience || '',
+      type,
+      status: 'active',
+      evaluationCriteria: {
+        innovation: { weight: 20, maxScore: 100 },
+        technical: { weight: 20, maxScore: 100 },
+        business: { weight: 20, maxScore: 100 },
+        presentation: { weight: 20, maxScore: 100 },
+        feasibility: { weight: 20, maxScore: 100 }
       }
     });
+    console.log('✅ Evaluator profile created:', evaluator._id);
 
-    // Mark invitation as sent
-    evaluator.invitationSent = true;
-    evaluator.invitationSentAt = new Date();
-    await evaluator.save();
-  } catch (emailError) {
-    console.error('Failed to send evaluator invitation:', emailError);
-  }
+    // Link evaluator profile to user
+    console.log('🔗 Linking evaluator profile to user...');
+    user.evaluatorProfile = evaluator._id;
+    await user.save();
+    console.log('✅ Evaluator profile linked to user');
 
-  res.status(201).json({
-    message: 'Evaluator created successfully and invitation sent',
-    evaluator,
-    user: {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
+    // Send invitation email
+    try {
+      console.log('📧 Sending invitation email...');
+      await getEmailService().sendEvaluatorInvitation({
+        evaluatorData: {
+          name,
+          email,
+          organization,
+          expertise: expertise,
+          type
+        },
+        credentials: {
+          password
+        }
+      });
+
+      // Mark invitation as sent
+      evaluator.invitationSent = true;
+      evaluator.invitationSentAt = new Date();
+      await evaluator.save();
+      console.log('✅ Invitation email sent successfully');
+    } catch (emailError) {
+      console.error('❌ Failed to send evaluator invitation:', emailError);
+      // Don't fail the entire operation if email fails
     }
-  });
+
+    console.log('🎉 Evaluator created successfully:', evaluator.name);
+    res.status(201).json({
+      message: 'Evaluator created successfully and invitation sent',
+      evaluator,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error creating evaluator:', error);
+    res.status(500);
+    throw new Error(`Failed to create evaluator: ${error.message}`);
+  }
 });
 
 // @desc    Resend invitation to evaluator
