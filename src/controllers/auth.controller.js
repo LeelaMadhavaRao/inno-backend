@@ -83,7 +83,14 @@ export const login = asyncHandler(async (req, res) => {
       
       // If user is faculty and has faculty profile, include faculty data
       if (user.role === 'faculty' && user.facultyProfile) {
+        console.log('🎓 Faculty profile found, populating data...');
         const facultyProfile = user.facultyProfile;
+        console.log('🎓 Faculty profile data:', {
+          designation: facultyProfile.designation,
+          department: facultyProfile.department,
+          specialization: facultyProfile.specialization
+        });
+        
         userData = {
           ...userData,
           department: facultyProfile.department,
@@ -95,7 +102,10 @@ export const login = asyncHandler(async (req, res) => {
           facultyRole: facultyProfile.role,
           facultyProfile: facultyProfile
         };
-        console.log('✅ Faculty profile data included');
+        console.log('✅ Faculty profile data included in response');
+      } else if (user.role === 'faculty') {
+        console.log('❌ Faculty user found but no faculty profile populated');
+        console.log('❌ user.facultyProfile:', user.facultyProfile);
       }
       
       res.json({
@@ -369,6 +379,6 @@ export const logout = asyncHandler(async (req, res) => {
 // Generate JWT token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '24h', // Extended to 24 hours for better user experience
+    expiresIn: '1h', // Extended to 1 hour for better user experience
   });
 };
