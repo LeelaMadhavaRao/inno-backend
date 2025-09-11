@@ -23,6 +23,8 @@ const facultySchema = new mongoose.Schema({
   designation: {
     type: String,
     required: true,
+    enum: ['Assistant Professor', 'Associate Professor', 'Professor', 'HOD', 'Principal'],
+    default: 'Assistant Professor'
   },
   specialization: String,
   experience: String,

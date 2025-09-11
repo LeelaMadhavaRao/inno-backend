@@ -359,6 +359,14 @@ export const createFaculty = asyncHandler(async (req, res) => {
     throw new Error('Please provide a valid email address');
   }
 
+  // Validate designation value
+  const validDesignations = ['Assistant Professor', 'Associate Professor', 'Professor', 'HOD', 'Principal'];
+  if (designation && !validDesignations.includes(designation)) {
+    console.log('❌ Invalid designation value received:', designation);
+    res.status(400);
+    throw new Error(`Invalid designation. Must be one of: ${validDesignations.join(', ')}`);
+  }
+
   // Check if faculty with this email already exists (same email can exist for different roles)
   console.log('🔍 Checking for existing faculty with email:', email);
   const existingUser = await User.findOne({ email, role: 'faculty' });
