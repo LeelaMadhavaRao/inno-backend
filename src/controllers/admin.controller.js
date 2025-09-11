@@ -196,7 +196,7 @@ export const createTeam = asyncHandler(async (req, res) => {
       credentials: {
         username,
         password,
-        loginUrl: `${process.env.FRONTEND_URL}/login`
+  loginUrl: `${process.env.FRONTEND_URL || 'https://innoverse-csit.web.app'}/login`
       },
       adminMessage: `Team created by admin. Access your team dashboard with the credentials below.`
     });

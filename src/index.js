@@ -37,7 +37,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://inno-backend-y1bv.onrender.com',
+  origin: process.env.FRONTEND_URL || 'https://innoverse-csit.web.app',
   credentials: true
 }));
 app.use(express.json());

@@ -52,7 +52,7 @@ class EmailService {
   // Send team invitation with credentials
   async sendTeamInvitation({ teamData, credentials }) {
     const subject = `Welcome to Innoverse 2025 - Team "${teamData.teamName}" Credentials`;
-  const frontendUrl = process.env.FRONTEND_URL || 'https://inno-backend-y1bv.onrender.com';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://innoverse-csit.web.app';
     
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -136,7 +136,7 @@ class EmailService {
   // Send faculty invitation
   async sendFacultyInvitation({ facultyData, credentials }) {
     const subject = `Innoverse 2025 - Faculty Portal Invitation`;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://innoverse-csit.web.app';
     
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -189,7 +189,7 @@ class EmailService {
   // Send evaluator invitation
   async sendEvaluatorInvitation({ evaluatorData, credentials }) {
     const subject = `Innoverse 2025 - Evaluator Portal Invitation`;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://innoverse-csit.web.app';
     
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -224,7 +224,7 @@ class EmailService {
           </div>
 
           <div style="text-align: center; margin: 30px 0;">
-            <a href="https://inno-backend-y1bv.onrender.com/login" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+            <a href="https://innoverse-csit.web.app/login" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
               👨‍⚖️ Access Evaluator Portal
             </a>
           </div>
@@ -242,7 +242,7 @@ class EmailService {
   // Send evaluation reminder
   async sendEvaluationReminder({ evaluatorEmail, evaluatorName, pendingTeams }) {
     const subject = `Innoverse 2025 - Evaluation Reminder`;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://innoverse-csit.web.app';
     
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
