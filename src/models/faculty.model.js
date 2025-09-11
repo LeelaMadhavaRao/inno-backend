@@ -8,7 +8,8 @@ const facultySchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
+    lowercase: true,
+    trim: true,
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,

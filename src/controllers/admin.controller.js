@@ -124,11 +124,11 @@ export const createTeam = asyncHandler(async (req, res) => {
     throw new Error('Team with this name or leader email already exists');
   }
 
-  // Check if team leader email already exists
-  const existingUser = await User.findOne({ email: teamLeader.email });
+  // Check if team leader already has a team account
+  const existingUser = await User.findOne({ email: teamLeader.email, role: 'team' });
   if (existingUser) {
     res.status(400);
-    throw new Error('Team leader email already registered');
+    throw new Error('Team leader already has a team account with this email');
   }
 
   // Generate unique username and password
@@ -334,11 +334,11 @@ export const getFaculty = asyncHandler(async (req, res) => {
 export const createFaculty = asyncHandler(async (req, res) => {
   const { name, email, department, designation, specialization, experience } = req.body;
 
-  // Check if faculty email already exists
-  const existingUser = await User.findOne({ email });
+  // Check if faculty with this email already exists (same email can exist for different roles)
+  const existingUser = await User.findOne({ email, role: 'faculty' });
   if (existingUser) {
     res.status(400);
-    throw new Error('Faculty email already registered');
+    throw new Error('Faculty account with this email already exists');
   }
 
   // Generate password
@@ -496,11 +496,11 @@ export const getEvaluators = asyncHandler(async (req, res) => {
 export const createEvaluator = asyncHandler(async (req, res) => {
   const { name, email, organization, designation, expertise, experience, type } = req.body;
 
-  // Check if evaluator email already exists
-  const existingUser = await User.findOne({ email });
+  // Check if evaluator with this email already exists (same email can exist for different roles)
+  const existingUser = await User.findOne({ email, role: 'evaluator' });
   if (existingUser) {
     res.status(400);
-    throw new Error('Evaluator email already registered');
+    throw new Error('Evaluator account with this email already exists');
   }
 
   // Generate password

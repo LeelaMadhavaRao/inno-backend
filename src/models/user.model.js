@@ -5,7 +5,8 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
+    lowercase: true,
+    trim: true,
   },
   password: {
     type: String,
@@ -123,6 +124,8 @@ userSchema.pre('save', async function(next) {
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ status: 1 });
+// Compound unique index: same email can be used for different roles
+userSchema.index({ email: 1, role: 1 }, { unique: true });
 
 const User = mongoose.model('User', userSchema);
 

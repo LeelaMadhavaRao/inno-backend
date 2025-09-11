@@ -6,14 +6,24 @@ import User from '../models/user.model.js';
 // @route   POST /api/auth/login
 // @access  Public
 export const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
 
   console.log('\n🔐 === PASSWORD VERIFICATION DEBUG ===');
   console.log('📧 Login attempt for email:', email);
-  console.log('🔑 User input password:', password);
+  console.log('� Login attempt for role:', role);
+  console.log('�🔑 User input password:', password);
   console.log('🔑 Password length:', password ? password.length : 0);
 
-  const user = await User.findOne({ email });
+  // Find user by email and role combination
+  let user;
+  if (role) {
+    user = await User.findOne({ email, role });
+    console.log(`🎯 Looking for user with email: ${email} and role: ${role}`);
+  } else {
+    // Fallback: try to find any user with this email (for backward compatibility)
+    user = await User.findOne({ email });
+    console.log(`🔍 Looking for any user with email: ${email}`);
+  }
 
   if (user) {
     console.log('👤 User found in database:', user.name);
@@ -65,9 +75,16 @@ export const login = asyncHandler(async (req, res) => {
       throw new Error('Invalid email or password');
     }
   } else {
-    console.log('❌ No user found with email:', email);
-    res.status(401);
-    throw new Error('Invalid email or password');
+    console.log('❌ No user found with email:', email, 'and role:', role || 'any');
+    
+    // If role was specified and no user found, provide helpful error message
+    if (role) {
+      res.status(401);
+      throw new Error(`No ${role} account found with this email. Please check your role selection.`);
+    } else {
+      res.status(401);
+      throw new Error('Invalid email or password');
+    }
   }
   
   console.log('🔐 === END PASSWORD VERIFICATION DEBUG ===\n');
@@ -79,11 +96,12 @@ export const login = asyncHandler(async (req, res) => {
 export const register = asyncHandler(async (req, res) => {
   const { name, email, password, role } = req.body;
 
-  const userExists = await User.findOne({ email });
+  // Check if user with this email and role combination already exists
+  const userExists = await User.findOne({ email, role });
 
   if (userExists) {
     res.status(400);
-    throw new Error('User already exists');
+    throw new Error(`User with this email already exists for ${role} role`);
   }
 
   const user = await User.create({

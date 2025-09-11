@@ -29,6 +29,9 @@ import galleryRoutes from './routes/gallery.routes.js';
 import teamRoutes from './routes/team.routes.js';
 import posterLaunchRoutes from './routes/posterLaunch.routes.js';
 
+// Import models for public endpoints
+import Team from './models/team.model.js';
+
 // Initialize express
 const app = express();
 
@@ -53,6 +56,27 @@ app.use('/api/evaluations', evaluationRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/poster-launch', posterLaunchRoutes);
+
+// Public routes (no auth required)
+app.get('/api/teams', async (req, res) => {
+  try {
+    const teams = await Team.find({})
+      .select('teamName teamLeader teamMembers projectDetails institution evaluationScores finalRank createdAt')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: teams
+    });
+  } catch (error) {
+    console.error('Error fetching teams:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching teams',
+      error: error.message
+    });
+  }
+});
 
 // Error handler
 app.use(errorHandler);
