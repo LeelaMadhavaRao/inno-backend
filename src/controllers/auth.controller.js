@@ -409,6 +409,6 @@ export const logout = asyncHandler(async (req, res) => {
 // Generate JWT token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '24h', // Extended to 24 hours for better user experience
+    expiresIn: '1h', // Extended to 24 hours for better user experience
   });
 };
