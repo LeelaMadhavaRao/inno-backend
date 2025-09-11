@@ -24,6 +24,7 @@ console.log('  EMAIL_PASS:', process.env.EMAIL_PASS ? '***SET***' : 'NOT SET');
 // Import routes
 import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import facultyRoutes from './routes/faculty.routes.js';
 import evaluationRoutes from './routes/evaluation.routes.js';
 import galleryRoutes from './routes/gallery.routes.js';
 import teamRoutes from './routes/team.routes.js';
@@ -66,6 +67,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/faculty', facultyRoutes);
 app.use('/api/evaluations', evaluationRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/team', teamRoutes);
@@ -151,6 +153,7 @@ app.use('/api/*', (req, res) => {
       '/api/teams',
       '/api/auth/*',
       '/api/admin/*',
+      '/api/faculty/*',
       '/api/evaluations/*',
       '/api/gallery/*',
       '/api/team/*',

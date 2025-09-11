@@ -40,3 +40,12 @@ export const isEvaluator = (req, res, next) => {
     throw new Error('Not authorized as evaluator');
   }
 };
+
+export const isFaculty = (req, res, next) => {
+  if (req.user && req.user.role === 'faculty') {
+    next();
+  } else {
+    res.status(403);
+    throw new Error('Not authorized as faculty');
+  }
+};
