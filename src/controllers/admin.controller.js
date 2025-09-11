@@ -630,6 +630,57 @@ export const createEvaluator = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Resend invitation to evaluator
+// @route   POST /api/admin/evaluators/:id/resend-invitation
+// @access  Private/Admin
+export const resendEvaluatorInvitation = asyncHandler(async (req, res) => {
+  const evaluator = await Evaluator.findById(req.params.id).populate('userId');
+
+  if (!evaluator) {
+    res.status(404);
+    throw new Error('Evaluator not found');
+  }
+
+  try {
+    // Generate new password
+    const newPassword = crypto.randomBytes(8).toString('hex');
+    
+    // Update user password
+    if (evaluator.userId) {
+      evaluator.userId.password = newPassword;
+      await evaluator.userId.save();
+    }
+
+    // Send invitation email
+    await getEmailService().sendEvaluatorInvitation({
+      evaluatorData: {
+        name: evaluator.name,
+        email: evaluator.email,
+        organization: evaluator.organization,
+        expertise: evaluator.expertise,
+        type: evaluator.type
+      },
+      credentials: {
+        password: newPassword
+      }
+    });
+
+    // Update invitation sent status
+    evaluator.invitationSent = true;
+    evaluator.invitationSentAt = new Date();
+    await evaluator.save();
+
+    res.json({
+      message: 'Invitation resent successfully',
+      evaluator
+    });
+  } catch (error) {
+    console.error('Failed to resend evaluator invitation:', error);
+    res.status(500);
+    throw new Error('Failed to resend invitation. Please try again.');
+  }
+});
+
 // @desc    Assign teams to evaluator
 // @route   POST /api/admin/evaluators/:id/assign-teams
 // @access  Private/Admin

@@ -20,6 +20,7 @@ import {
   // Evaluator Management
   getEvaluators,
   createEvaluator,
+  resendEvaluatorInvitation,
   assignTeamsToEvaluator,
   
   // Evaluation Management
@@ -83,6 +84,7 @@ router.route('/evaluators')
   .get(getEvaluators)
   .post(createEvaluator);
 
+router.post('/evaluators/:id/resend-invitation', resendEvaluatorInvitation);
 router.post('/evaluators/:id/assign-teams', assignTeamsToEvaluator);
 
 // Evaluation Management Routes
