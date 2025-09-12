@@ -23,8 +23,8 @@ const evaluatorSchema = new mongoose.Schema({
   designation: String,
   expertise: [String],
   experience: {
-    years: Number,
-    description: String,
+    type: mongoose.Schema.Types.Mixed, // Allow both string and object
+    default: null
   },
   type: {
     type: String,

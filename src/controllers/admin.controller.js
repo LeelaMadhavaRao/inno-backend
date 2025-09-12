@@ -594,7 +594,7 @@ export const createEvaluator = asyncHandler(async (req, res) => {
       organization,
       designation: designation || '',
       expertise: expertise ? expertise.split(',').map(e => e.trim()) : [],
-      experience: experience || '',
+      experience: experience || null,
       type,
       status: 'active',
       evaluationCriteria: {
@@ -616,7 +616,8 @@ export const createEvaluator = asyncHandler(async (req, res) => {
     // Send invitation email
     try {
       console.log('📧 Sending invitation email...');
-      await getEmailService().sendEvaluatorInvitation({
+      const emailService = getEmailService();
+      await emailService.sendEvaluatorInvitation({
         evaluatorData: {
           name,
           email,
@@ -636,7 +637,8 @@ export const createEvaluator = asyncHandler(async (req, res) => {
       console.log('✅ Invitation email sent successfully');
     } catch (emailError) {
       console.error('❌ Failed to send evaluator invitation:', emailError);
-      // Don't fail the entire operation if email fails
+      console.error('❌ Email error stack:', emailError.stack);
+      // Don't fail the entire operation if email fails - just log the error
     }
 
     console.log('🎉 Evaluator created successfully:', evaluator.name);
@@ -652,6 +654,21 @@ export const createEvaluator = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error creating evaluator:', error);
+    console.error('❌ Error stack:', error.stack);
+    
+    // Handle specific MongoDB validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      res.status(400);
+      throw new Error(`Validation Error: ${validationErrors.join(', ')}`);
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      res.status(400);
+      throw new Error('Evaluator with this email already exists');
+    }
+    
     res.status(500);
     throw new Error(`Failed to create evaluator: ${error.message}`);
   }
