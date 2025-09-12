@@ -562,11 +562,23 @@ export const createEvaluator = asyncHandler(async (req, res) => {
   }
 
   // Check if evaluator with this email already exists (same email can exist for different roles)
-  const existingUser = await User.findOne({ email, role: 'evaluator' });
-  if (existingUser) {
-    console.log('❌ Evaluator with email already exists:', email);
+  console.log('🔍 Checking for existing evaluator with email and role:', { email, role: 'evaluator' });
+  const existingEvaluator = await User.findOne({ email, role: 'evaluator' });
+  if (existingEvaluator) {
+    console.log('❌ Evaluator with this email already exists:', email);
     res.status(400);
-    throw new Error('Evaluator account with this email already exists');
+    throw new Error('An evaluator account with this email already exists');
+  }
+  
+  // Check if there's an existing user with same email in any role
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    console.log(`ℹ️ User with email exists as ${existingUser.role}, but creating separate evaluator account...`);
+    console.log('✅ Different role allowed, proceeding with evaluator creation');
+    
+    // Additional check: if user wants same person to have multiple roles,
+    // we might want to link accounts instead of creating duplicate users
+    // For now, we'll allow separate accounts per role as per the compound index design
   }
 
   try {
@@ -663,10 +675,26 @@ export const createEvaluator = asyncHandler(async (req, res) => {
       throw new Error(`Validation Error: ${validationErrors.join(', ')}`);
     }
     
-    // Handle duplicate key errors
+    // Handle duplicate key errors (MongoDB error code 11000)
     if (error.code === 11000) {
+      console.log('🔍 Duplicate key error details:', error.keyPattern, error.keyValue);
+      
+      // Check if it's email-role duplicate
+      if (error.keyPattern && error.keyPattern.email && error.keyPattern.role) {
+        res.status(400);
+        throw new Error('An evaluator with this email already exists. Please use a different email address.');
+      }
+      
+      // Generic duplicate key error
       res.status(400);
-      throw new Error('Evaluator with this email already exists');
+      throw new Error('Duplicate data detected. This evaluator may already exist.');
+    }
+    
+    // Handle MongoServerError (new MongoDB driver)
+    if (error.name === 'MongoServerError' && error.code === 11000) {
+      console.log('🔍 MongoDB server duplicate key error:', error.errorResponse);
+      res.status(400);
+      throw new Error('An evaluator with this email already exists. Please use a different email address.');
     }
     
     res.status(500);
