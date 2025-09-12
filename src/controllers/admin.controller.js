@@ -678,8 +678,15 @@ export const createEvaluator = asyncHandler(async (req, res) => {
     // Handle duplicate key errors (MongoDB error code 11000)
     if (error.code === 11000) {
       console.log('🔍 Duplicate key error details:', error.keyPattern, error.keyValue);
+      console.log('🔍 Full error message:', error.message);
       
-      // Check if it's email-role duplicate
+      // Check if it's the simple email duplicate (the problematic one)
+      if (error.message.includes('key: { email:')) {
+        res.status(400);
+        throw new Error('This email is already registered in the system. The database needs to be updated to allow the same email for different roles. Please contact your administrator.');
+      }
+      
+      // Check if it's email-role duplicate (expected behavior)
       if (error.keyPattern && error.keyPattern.email && error.keyPattern.role) {
         res.status(400);
         throw new Error('An evaluator with this email already exists. Please use a different email address.');
@@ -693,6 +700,12 @@ export const createEvaluator = asyncHandler(async (req, res) => {
     // Handle MongoServerError (new MongoDB driver)
     if (error.name === 'MongoServerError' && error.code === 11000) {
       console.log('🔍 MongoDB server duplicate key error:', error.errorResponse);
+      
+      if (error.message.includes('key: { email:')) {
+        res.status(400);
+        throw new Error('This email is already registered in the system. The database needs to be updated to allow the same email for different roles. Please contact your administrator.');
+      }
+      
       res.status(400);
       throw new Error('An evaluator with this email already exists. Please use a different email address.');
     }
