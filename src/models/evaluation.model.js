@@ -11,74 +11,149 @@ const evaluationSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  posterSubmissionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Gallery',
-    required: true
-  },
-  scores: {
-    innovation: {
+  criteria: {
+    problemStatement: {
       type: Number,
       required: true,
       min: 0,
-      max: 10
+      max: 25
     },
-    technicalComplexity: {
+    teamInvolvement: {
       type: Number,
       required: true,
       min: 0,
-      max: 10
+      max: 25
     },
-    presentation: {
+    leanCanvas: {
       type: Number,
       required: true,
       min: 0,
-      max: 10
+      max: 25
     },
-    feasibility: {
+    prototypeQuality: {
       type: Number,
       required: true,
       min: 0,
-      max: 10
+      max: 25
     }
   },
-  comments: {
+  feedback: {
     type: String,
-    trim: true
+    trim: true,
+    default: ''
   },
   totalScore: {
     type: Number,
+    required: true,
+    min: 0,
+    max: 100,
     default: function() {
-      const scores = this.scores;
-      return (scores.innovation + scores.technicalComplexity + 
-              scores.presentation + scores.feasibility) / 4;
+      if (this.criteria) {
+        return this.criteria.problemStatement + 
+               this.criteria.teamInvolvement + 
+               this.criteria.leanCanvas + 
+               this.criteria.prototypeQuality;
+      }
+      return 0;
     }
   },
   status: {
     type: String,
-    enum: ['pending', 'completed'],
-    default: 'pending'
+    enum: ['draft', 'submitted', 'reviewed'],
+    default: 'draft'
+  },
+  submittedAt: {
+    type: Date,
+    default: null
+  },
+  reviewedAt: {
+    type: Date,
+    default: null
+  },
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   }
 }, {
   timestamps: true
 });
 
-// Index for efficient queries
-evaluationSchema.index({ teamId: 1, evaluatorId: 1 });
-evaluationSchema.index({ posterSubmissionId: 1 });
+// Compound index to ensure one evaluation per evaluator per team
+evaluationSchema.index({ teamId: 1, evaluatorId: 1 }, { unique: true });
 
-// Middleware to update totalScore before saving
+// Index for efficient queries
+evaluationSchema.index({ status: 1 });
+evaluationSchema.index({ submittedAt: 1 });
+evaluationSchema.index({ totalScore: -1 });
+
+// Middleware to calculate totalScore before saving
 evaluationSchema.pre('save', function(next) {
-  if (this.scores) {
-    this.totalScore = (
-      this.scores.innovation +
-      this.scores.technicalComplexity +
-      this.scores.presentation +
-      this.scores.feasibility
-    ) / 4;
+  if (this.criteria && this.isModified('criteria')) {
+    this.totalScore = 
+      this.criteria.problemStatement + 
+      this.criteria.teamInvolvement + 
+      this.criteria.leanCanvas + 
+      this.criteria.prototypeQuality;
   }
+  
+  // Set submittedAt when status changes to submitted
+  if (this.isModified('status') && this.status === 'submitted' && !this.submittedAt) {
+    this.submittedAt = new Date();
+  }
+  
   next();
 });
+
+// Virtual for percentage score
+evaluationSchema.virtual('percentageScore').get(function() {
+  return (this.totalScore / 100) * 100;
+});
+
+// Method to get detailed breakdown
+evaluationSchema.methods.getBreakdown = function() {
+  return {
+    criteria: this.criteria,
+    totalScore: this.totalScore,
+    percentageScore: this.percentageScore,
+    status: this.status,
+    submittedAt: this.submittedAt,
+    feedback: this.feedback
+  };
+};
+
+// Static method to get team statistics
+evaluationSchema.statics.getTeamStatistics = async function(teamId) {
+  const evaluations = await this.find({ teamId, status: 'submitted' });
+  
+  if (evaluations.length === 0) {
+    return {
+      totalEvaluations: 0,
+      averageScore: 0,
+      highestScore: 0,
+      lowestScore: 0,
+      criteriaAverages: {}
+    };
+  }
+  
+  const totalScore = evaluations.reduce((sum, evaluation) => sum + evaluation.totalScore, 0);
+  const scores = evaluations.map(evaluation => evaluation.totalScore);
+  
+  const criteriaAverages = {
+    problemStatement: evaluations.reduce((sum, evaluation) => sum + evaluation.criteria.problemStatement, 0) / evaluations.length,
+    teamInvolvement: evaluations.reduce((sum, evaluation) => sum + evaluation.criteria.teamInvolvement, 0) / evaluations.length,
+    leanCanvas: evaluations.reduce((sum, evaluation) => sum + evaluation.criteria.leanCanvas, 0) / evaluations.length,
+    prototypeQuality: evaluations.reduce((sum, evaluation) => sum + evaluation.criteria.prototypeQuality, 0) / evaluations.length
+  };
+  
+  return {
+    totalEvaluations: evaluations.length,
+    averageScore: totalScore / evaluations.length,
+    highestScore: Math.max(...scores),
+    lowestScore: Math.min(...scores),
+    criteriaAverages
+  };
+};
 
 const Evaluation = mongoose.model('Evaluation', evaluationSchema);
 
