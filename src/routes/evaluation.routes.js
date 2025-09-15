@@ -6,6 +6,8 @@ import {
   getTeamForEvaluation,
   submitEvaluation,
   updateEvaluation,
+  getEvaluatorProfile,
+  updateEvaluatorProfile,
   
   // Admin endpoints
   getEvaluationOverview,
@@ -23,6 +25,12 @@ const router = express.Router();
 // ==================== EVALUATOR ROUTES ====================
 // Get evaluator's assigned teams
 router.get('/evaluator/teams', protect, authorize('evaluator'), getEvaluatorTeams);
+
+// Get evaluator's profile
+router.get('/evaluator/profile', protect, authorize('evaluator'), getEvaluatorProfile);
+
+// Update evaluator's profile
+router.put('/evaluator/profile', protect, authorize('evaluator'), updateEvaluatorProfile);
 
 // Get specific team for evaluation
 router.get('/team/:teamId', protect, authorize('evaluator'), getTeamForEvaluation);

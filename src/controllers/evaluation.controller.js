@@ -242,6 +242,89 @@ export const updateEvaluation = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get evaluator's own profile
+// @route   GET /api/evaluations/evaluator/profile
+// @access  Private/Evaluator
+export const getEvaluatorProfile = asyncHandler(async (req, res) => {
+  const evaluator = await Evaluator.findOne({ userId: req.user._id })
+    .populate('assignedTeams.teamId', 'teamName teamLeader projectDetails status');
+
+  if (!evaluator) {
+    res.status(404);
+    throw new Error('Evaluator profile not found');
+  }
+
+  // Get evaluation statistics
+  const totalEvaluations = await Evaluation.countDocuments({ evaluatorId: req.user._id });
+  const assignedTeamsCount = evaluator.assignedTeams.length;
+
+  res.json({
+    profile: {
+      _id: evaluator._id,
+      name: evaluator.name,
+      email: evaluator.email,
+      organization: evaluator.organization,
+      designation: evaluator.designation,
+      type: evaluator.type,
+      expertise: evaluator.expertise,
+      experience: evaluator.experience,
+      phone: evaluator.phone,
+      status: evaluator.status,
+      createdAt: evaluator.createdAt
+    },
+    statistics: {
+      totalAssigned: assignedTeamsCount,
+      totalCompleted: totalEvaluations,
+      totalRemaining: assignedTeamsCount - totalEvaluations,
+      completionRate: assignedTeamsCount > 0 ? Math.round((totalEvaluations / assignedTeamsCount) * 100) : 0
+    }
+  });
+});
+
+// @desc    Update evaluator's own profile
+// @route   PUT /api/evaluations/evaluator/profile
+// @access  Private/Evaluator
+export const updateEvaluatorProfile = asyncHandler(async (req, res) => {
+  const { name, organization, designation, experience, phone, expertise } = req.body;
+
+  const evaluator = await Evaluator.findOne({ userId: req.user._id });
+  if (!evaluator) {
+    res.status(404);
+    throw new Error('Evaluator profile not found');
+  }
+
+  // Update fields that evaluators are allowed to modify
+  if (name) evaluator.name = name;
+  if (organization) evaluator.organization = organization;
+  if (designation) evaluator.designation = designation;
+  if (experience) evaluator.experience = experience;
+  if (phone) evaluator.phone = phone;
+  if (expertise && Array.isArray(expertise)) evaluator.expertise = expertise;
+
+  const updatedEvaluator = await evaluator.save();
+
+  // Also update the linked user name if provided
+  if (name) {
+    await User.findByIdAndUpdate(req.user._id, { name });
+  }
+
+  res.json({
+    message: 'Profile updated successfully',
+    profile: {
+      _id: updatedEvaluator._id,
+      name: updatedEvaluator.name,
+      email: updatedEvaluator.email,
+      organization: updatedEvaluator.organization,
+      designation: updatedEvaluator.designation,
+      type: updatedEvaluator.type,
+      expertise: updatedEvaluator.expertise,
+      experience: updatedEvaluator.experience,
+      phone: updatedEvaluator.phone,
+      status: updatedEvaluator.status
+    }
+  });
+});
+
 // ==================== ADMIN EVALUATION MANAGEMENT ====================
 
 // @desc    Get all evaluations with statistics
