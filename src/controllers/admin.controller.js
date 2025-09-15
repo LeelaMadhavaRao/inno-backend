@@ -581,6 +581,13 @@ export const createEvaluator = asyncHandler(async (req, res) => {
       throw new Error('Evaluator account with this email already exists');
     }
 
+    // Check if email exists with different role (this should be allowed)
+    const userWithSameEmail = await User.findOne({ email });
+    if (userWithSameEmail) {
+      console.log('ℹ️ User with this email exists in role:', userWithSameEmail.role);
+      console.log('✅ Same email with different role is allowed');
+    }
+
     // Also check evaluator collection directly
     const existingEvaluator = await Evaluator.findOne({ email });
     if (existingEvaluator) {
@@ -593,16 +600,31 @@ export const createEvaluator = asyncHandler(async (req, res) => {
     const password = crypto.randomBytes(8).toString('hex');
     console.log('🔑 Generated password for evaluator');
 
-    // Create user account
+    // Create user account with detailed error handling
     console.log('👤 Creating user account...');
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role: 'evaluator',
-      createdBy: req.user._id
-    });
-    console.log('✅ User created:', user._id);
+    let user;
+    try {
+      user = await User.create({
+        name,
+        email,
+        password,
+        role: 'evaluator',
+        createdBy: req.user._id
+      });
+      console.log('✅ User created:', user._id);
+    } catch (userCreateError) {
+      console.error('❌ User creation failed:', userCreateError.message);
+      if (userCreateError.code === 11000) {
+        // MongoDB duplicate key error
+        if (userCreateError.message.includes('email_1')) {
+          res.status(400);
+          throw new Error('Email already exists. Same email can be used for different roles, but there may be a database index conflict.');
+        }
+        res.status(400);
+        throw new Error('Duplicate key error: ' + userCreateError.message);
+      }
+      throw userCreateError;
+    }
 
     // Create evaluator profile
     console.log('👨‍⚖️ Creating evaluator profile...');
