@@ -50,6 +50,42 @@ export const getEvaluatorTeams = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get evaluator's completed evaluations
+// @route   GET /api/evaluations/evaluator/evaluations
+// @access  Private/Evaluator
+export const getEvaluatorEvaluations = asyncHandler(async (req, res) => {
+  const evaluator = await Evaluator.findOne({ userId: req.user._id });
+  if (!evaluator) {
+    res.status(404);
+    throw new Error('Evaluator profile not found');
+  }
+
+  // Get all evaluations submitted by this evaluator
+  const evaluations = await Evaluation.find({ evaluatorId: req.user._id })
+    .populate('teamId', 'teamName teamLeader projectDetails')
+    .sort({ createdAt: -1 });
+
+  res.json({
+    evaluator: {
+      name: evaluator.name,
+      email: evaluator.email,
+      organization: evaluator.organization
+    },
+    evaluations: evaluations.map(evaluation => ({
+      _id: evaluation._id,
+      teamName: evaluation.teamId.teamName,
+      teamLeader: evaluation.teamId.teamLeader,
+      projectDetails: evaluation.teamId.projectDetails,
+      criteria: evaluation.criteria,
+      totalScore: evaluation.totalScore,
+      feedback: evaluation.feedback,
+      submittedAt: evaluation.createdAt,
+      status: 'completed'
+    })),
+    totalEvaluations: evaluations.length
+  });
+});
+
 // @desc    Get specific team details for evaluation
 // @route   GET /api/evaluations/team/:teamId
 // @access  Private/Evaluator

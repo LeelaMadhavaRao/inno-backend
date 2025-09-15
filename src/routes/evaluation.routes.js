@@ -3,6 +3,7 @@ import { protect, authorize } from '../middleware/auth.js';
 import {
   // Evaluator endpoints
   getEvaluatorTeams,
+  getEvaluatorEvaluations,
   getTeamForEvaluation,
   submitEvaluation,
   updateEvaluation,
@@ -25,6 +26,9 @@ const router = express.Router();
 // ==================== EVALUATOR ROUTES ====================
 // Get evaluator's assigned teams
 router.get('/evaluator/teams', protect, authorize('evaluator'), getEvaluatorTeams);
+
+// Get evaluator's completed evaluations
+router.get('/evaluator/evaluations', protect, authorize('evaluator'), getEvaluatorEvaluations);
 
 // Get evaluator's profile
 router.get('/evaluator/profile', protect, authorize('evaluator'), getEvaluatorProfile);
