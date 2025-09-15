@@ -554,7 +554,7 @@ export const createEvaluator = asyncHandler(async (req, res) => {
   console.log('📧 Request body:', JSON.stringify(req.body, null, 2));
   console.log('👤 Admin user:', req.user ? req.user._id : 'Not authenticated');
 
-  const { name, email, organization, designation, expertise, experience, type } = req.body;
+  const { name, email, organization, designation, expertise, experience, type, password: customPassword } = req.body;
 
   // Validate required fields
   if (!name || !email) {
@@ -597,8 +597,8 @@ export const createEvaluator = asyncHandler(async (req, res) => {
     }
 
     // Generate password
-    const password = crypto.randomBytes(8).toString('hex');
-    console.log('🔑 Generated password for evaluator');
+    const password = customPassword || crypto.randomBytes(8).toString('hex');
+    console.log('🔑 Generated/Custom password for evaluator:', customPassword ? 'Custom password provided' : 'Auto-generated');
 
     // Create user account with detailed error handling
     console.log('👤 Creating user account...');
@@ -742,7 +742,7 @@ export const assignTeamsToEvaluator = asyncHandler(async (req, res) => {
 // @route   PUT /api/admin/evaluators/:id
 // @access  Private/Admin
 export const updateEvaluator = asyncHandler(async (req, res) => {
-  const { name, email, organization, designation, expertise, experience, type, status } = req.body;
+  const { name, email, organization, designation, expertise, experience, type, status, password } = req.body;
 
   const evaluator = await Evaluator.findById(req.params.id).populate('userId');
   if (!evaluator) {
@@ -780,6 +780,13 @@ export const updateEvaluator = asyncHandler(async (req, res) => {
     evaluator.userId.name = name || evaluator.userId.name;
     evaluator.userId.email = email || evaluator.userId.email;
     evaluator.userId.status = status || evaluator.userId.status;
+    
+    // Update password if provided
+    if (password && password.trim()) {
+      evaluator.userId.password = password;
+      console.log('🔑 Password updated for evaluator:', evaluator.name);
+    }
+    
     await evaluator.userId.save();
   }
 
