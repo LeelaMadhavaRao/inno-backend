@@ -54,7 +54,46 @@ import {
 
 const router = express.Router();
 
-// Apply protection and admin check to all routes
+// Temporary evaluator endpoints (must be BEFORE admin middleware)
+// These endpoints are for evaluators, not admins, so they don't need isAdmin middleware
+const evaluatorRouter = express.Router();
+evaluatorRouter.use(protect);
+evaluatorRouter.use(authorize('evaluator'));
+
+evaluatorRouter.get('/profile', async (req, res) => {
+  try {
+    const { getEvaluatorProfile } = await import('../controllers/evaluation.controller.js');
+    return getEvaluatorProfile(req, res);
+  } catch (error) {
+    console.error('Error in evaluator profile endpoint:', error);
+    res.status(500).json({ message: 'Profile endpoint not available', error: error.message });
+  }
+});
+
+evaluatorRouter.get('/evaluations', async (req, res) => {
+  try {
+    const { getEvaluatorEvaluations } = await import('../controllers/evaluation.controller.js');
+    return getEvaluatorEvaluations(req, res);
+  } catch (error) {
+    console.error('Error in evaluator evaluations endpoint:', error);
+    res.status(500).json({ message: 'Evaluations endpoint not available', error: error.message });
+  }
+});
+
+evaluatorRouter.get('/teams', async (req, res) => {
+  try {
+    const { getEvaluatorTeams } = await import('../controllers/evaluation.controller.js');
+    return getEvaluatorTeams(req, res);
+  } catch (error) {
+    console.error('Error in evaluator teams endpoint:', error);
+    res.status(500).json({ message: 'Teams endpoint not available', error: error.message });
+  }
+});
+
+// Mount evaluator routes on /evaluator path (BEFORE admin middleware)
+router.use('/evaluator', evaluatorRouter);
+
+// Apply protection and admin check to admin-only routes
 router.use(protect);
 router.use(isAdmin);
 
@@ -95,45 +134,6 @@ router.route('/evaluators/:id')
 // Evaluation Management Routes
 router.get('/evaluations', getEvaluations);
 router.get('/evaluations/team/:teamId', getTeamEvaluations);
-
-// Temporary evaluator endpoints (until dedicated evaluator routes are deployed)
-// Note: These are not protected by isAdmin since they're for evaluators
-const evaluatorRouter = express.Router();
-evaluatorRouter.use(protect);
-evaluatorRouter.use(authorize('evaluator'));
-
-evaluatorRouter.get('/profile', async (req, res) => {
-  try {
-    const { getEvaluatorProfile } = await import('../controllers/evaluation.controller.js');
-    return getEvaluatorProfile(req, res);
-  } catch (error) {
-    console.error('Error in evaluator profile endpoint:', error);
-    res.status(500).json({ message: 'Profile endpoint not available', error: error.message });
-  }
-});
-
-evaluatorRouter.get('/evaluations', async (req, res) => {
-  try {
-    const { getEvaluatorEvaluations } = await import('../controllers/evaluation.controller.js');
-    return getEvaluatorEvaluations(req, res);
-  } catch (error) {
-    console.error('Error in evaluator evaluations endpoint:', error);
-    res.status(500).json({ message: 'Evaluations endpoint not available', error: error.message });
-  }
-});
-
-evaluatorRouter.get('/teams', async (req, res) => {
-  try {
-    const { getEvaluatorTeams } = await import('../controllers/evaluation.controller.js');
-    return getEvaluatorTeams(req, res);
-  } catch (error) {
-    console.error('Error in evaluator teams endpoint:', error);
-    res.status(500).json({ message: 'Teams endpoint not available', error: error.message });
-  }
-});
-
-// Mount evaluator routes on /evaluator path
-router.use('/evaluator', evaluatorRouter);
 
 // User Management Routes
 router.route('/users')
