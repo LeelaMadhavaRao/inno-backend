@@ -507,83 +507,101 @@ export const createFaculty = asyncHandler(async (req, res) => {
 // @route   POST /api/admin/faculty/:id/resend-invitation
 // @access  Private/Admin
 export const resendFacultyInvitation = asyncHandler(async (req, res) => {
-  try {
-    console.log('Resending faculty invitation for ID:', req.params.id);
-    
-    const faculty = await Faculty.findById(req.params.id).populate('userId');
-    
-    if (!faculty) {
-      console.log('Faculty not found for ID:', req.params.id);
-      res.status(404);
-      throw new Error('Faculty member not found');
-    }
+  console.log('Resending faculty invitation for ID:', req.params.id);
+  
+  // Validate MongoDB ObjectId format
+  if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+    console.log('Invalid faculty ID format:', req.params.id);
+    res.status(400);
+    throw new Error('Invalid faculty ID format');
+  }
+  
+  const faculty = await Faculty.findById(req.params.id).populate('userId');
+  
+  if (!faculty) {
+    console.log('Faculty not found for ID:', req.params.id);
+    res.status(404);
+    throw new Error('Faculty member not found');
+  }
 
-    console.log('Faculty found:', {
+  console.log('Faculty found:', {
+    id: faculty._id,
+    name: faculty.name,
+    email: faculty.email,
+    hasUserId: !!faculty.userId
+  });
+
+  // Check if userId exists and is populated
+  if (!faculty.userId) {
+    console.error('Faculty userId not found, attempting to create user account');
+    
+    // Try to find existing user with same email and role
+    let user = await User.findOne({ email: faculty.email, role: 'faculty' });
+    
+    if (!user) {
+      // Create user account if it doesn't exist
+      const defaultPassword = crypto.randomBytes(8).toString('hex');
+      user = await User.create({
+        name: faculty.name,
+        email: faculty.email,
+        password: defaultPassword,
+        role: 'faculty',
+        status: 'active'
+      });
+      console.log('Created new user account for faculty:', user._id);
+    }
+    
+    // Link the user to faculty
+    faculty.userId = user._id;
+    await faculty.save();
+    console.log('Linked user account to faculty');
+    
+    // Re-populate the userId field
+    await faculty.populate('userId');
+  }
+
+  // Generate new password
+  const newPassword = crypto.randomBytes(8).toString('hex');
+  console.log('Generated new password for faculty:', faculty.email);
+  
+  // Update user password
+  faculty.userId.password = newPassword;
+  await faculty.userId.save();
+  console.log('Password updated for user:', faculty.userId.email);
+
+  // Send invitation email
+  try {
+    console.log('Attempting to send faculty invitation email...');
+    await getEmailService().sendFacultyInvitation({
+      facultyData: faculty,
+      credentials: {
+        password: newPassword
+      }
+    });
+    console.log('Faculty invitation email sent successfully');
+  } catch (emailError) {
+    console.error('Failed to send faculty invitation email:', emailError);
+    // Continue execution but log the error
+    console.log('Continuing despite email error...');
+  }
+
+  // Update invitation sent status
+  faculty.invitationSent = true;
+  faculty.invitationSentAt = new Date();
+  await faculty.save();
+  console.log('Faculty invitation status updated');
+
+  res.json({ 
+    success: true,
+    message: 'Faculty invitation resent successfully',
+    faculty: {
       id: faculty._id,
       name: faculty.name,
       email: faculty.email,
-      hasUserId: !!faculty.userId,
-      userIdData: faculty.userId ? {
-        id: faculty.userId._id,
-        email: faculty.userId.email,
-        role: faculty.userId.role
-      } : null
-    });
-
-    // Check if userId exists and is populated
-    if (!faculty.userId) {
-      console.error('Faculty userId not found or not populated');
-      res.status(400);
-      throw new Error('Faculty user account not found. Please contact administrator.');
+      invitationSent: faculty.invitationSent,
+      invitationSentAt: faculty.invitationSentAt
     }
-
-    // Generate new password
-    const newPassword = crypto.randomBytes(8).toString('hex');
-    console.log('Generated new password for faculty:', faculty.email);
-    
-    // Update user password
-    faculty.userId.password = newPassword;
-    await faculty.userId.save();
-    console.log('Password updated for user:', faculty.userId.email);
-
-    // Send invitation email
-    try {
-      console.log('Attempting to send faculty invitation email...');
-      await getEmailService().sendFacultyInvitation({
-        facultyData: faculty,
-        credentials: {
-          password: newPassword
-        }
-      });
-      console.log('Faculty invitation email sent successfully');
-    } catch (emailError) {
-      console.error('Failed to send faculty invitation email:', emailError);
-      // Continue execution but log the error
-      console.log('Continuing despite email error...');
-    }
-
-    // Update invitation sent status
-    faculty.invitationSent = true;
-    faculty.invitationSentAt = new Date();
-    await faculty.save();
-    console.log('Faculty invitation status updated');
-
-    res.json({ 
-      message: 'Faculty invitation resent successfully',
-      faculty: {
-        id: faculty._id,
-        name: faculty.name,
-        email: faculty.email,
-        invitationSent: faculty.invitationSent,
-        invitationSentAt: faculty.invitationSentAt
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error in resendFacultyInvitation:', error);
-    console.error('Error stack:', error.stack);
-    throw error;
-  }
+  });
 });
 
 // @desc    Update faculty
