@@ -247,25 +247,68 @@ export const createTeam = asyncHandler(async (req, res) => {
 // @route   POST /api/admin/teams/:id/resend-invitation
 // @access  Private/Admin
 export const resendTeamInvitation = asyncHandler(async (req, res) => {
-  const team = await Team.findById(req.params.id);
-  
-  if (!team) {
-    res.status(404);
-    throw new Error('Team not found');
+  try {
+    console.log('Resending team invitation for ID:', req.params.id);
+    
+    const team = await Team.findById(req.params.id);
+    
+    if (!team) {
+      console.log('Team not found for ID:', req.params.id);
+      res.status(404);
+      throw new Error('Team not found');
+    }
+
+    console.log('Team found:', {
+      id: team._id,
+      teamName: team.teamName,
+      teamLeaderEmail: team.teamLeader?.email,
+      hasCredentials: !!team.credentials,
+      username: team.credentials?.username
+    });
+
+    // Check if team has credentials
+    if (!team.credentials || !team.credentials.username || !team.credentials.password) {
+      console.error('Team credentials missing or incomplete');
+      res.status(400);
+      throw new Error('Team credentials not found. Please contact administrator.');
+    }
+
+    // Send invitation email
+    try {
+      console.log('Attempting to send team invitation email...');
+      await getEmailService().sendTeamInvitation({
+        teamData: team,
+        credentials: team.credentials
+      });
+      console.log('Team invitation email sent successfully');
+    } catch (emailError) {
+      console.error('Failed to send team invitation email:', emailError);
+      // Continue execution but log the error
+      console.log('Continuing despite email error...');
+    }
+
+    // Update invitation sent status
+    team.invitationSent = true;
+    team.invitationSentAt = new Date();
+    await team.save();
+    console.log('Team invitation status updated');
+
+    res.json({ 
+      message: 'Team invitation resent successfully',
+      team: {
+        id: team._id,
+        teamName: team.teamName,
+        teamLeaderEmail: team.teamLeader?.email,
+        invitationSent: team.invitationSent,
+        invitationSentAt: team.invitationSentAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error in resendTeamInvitation:', error);
+    console.error('Error stack:', error.stack);
+    throw error;
   }
-
-  // Send invitation email
-  await getEmailService().sendTeamInvitation({
-    teamData: team,
-    credentials: team.credentials
-  });
-
-  // Update invitation sent status
-  team.invitationSent = true;
-  team.invitationSentAt = new Date();
-  await team.save();
-
-  res.json({ message: 'Invitation resent successfully' });
 });
 
 // @desc    Update team
@@ -464,32 +507,83 @@ export const createFaculty = asyncHandler(async (req, res) => {
 // @route   POST /api/admin/faculty/:id/resend-invitation
 // @access  Private/Admin
 export const resendFacultyInvitation = asyncHandler(async (req, res) => {
-  const faculty = await Faculty.findById(req.params.id).populate('userId');
-  
-  if (!faculty) {
-    res.status(404);
-    throw new Error('Faculty member not found');
-  }
-
-  // Generate new password
-  const newPassword = crypto.randomBytes(8).toString('hex');
-  faculty.userId.password = newPassword;
-  await faculty.userId.save();
-
-  // Send invitation email
-  await getEmailService().sendFacultyInvitation({
-    facultyData: faculty,
-    credentials: {
-      password: newPassword
+  try {
+    console.log('Resending faculty invitation for ID:', req.params.id);
+    
+    const faculty = await Faculty.findById(req.params.id).populate('userId');
+    
+    if (!faculty) {
+      console.log('Faculty not found for ID:', req.params.id);
+      res.status(404);
+      throw new Error('Faculty member not found');
     }
-  });
 
-  // Update invitation sent status
-  faculty.invitationSent = true;
-  faculty.invitationSentAt = new Date();
-  await faculty.save();
+    console.log('Faculty found:', {
+      id: faculty._id,
+      name: faculty.name,
+      email: faculty.email,
+      hasUserId: !!faculty.userId,
+      userIdData: faculty.userId ? {
+        id: faculty.userId._id,
+        email: faculty.userId.email,
+        role: faculty.userId.role
+      } : null
+    });
 
-  res.json({ message: 'Faculty invitation resent successfully' });
+    // Check if userId exists and is populated
+    if (!faculty.userId) {
+      console.error('Faculty userId not found or not populated');
+      res.status(400);
+      throw new Error('Faculty user account not found. Please contact administrator.');
+    }
+
+    // Generate new password
+    const newPassword = crypto.randomBytes(8).toString('hex');
+    console.log('Generated new password for faculty:', faculty.email);
+    
+    // Update user password
+    faculty.userId.password = newPassword;
+    await faculty.userId.save();
+    console.log('Password updated for user:', faculty.userId.email);
+
+    // Send invitation email
+    try {
+      console.log('Attempting to send faculty invitation email...');
+      await getEmailService().sendFacultyInvitation({
+        facultyData: faculty,
+        credentials: {
+          password: newPassword
+        }
+      });
+      console.log('Faculty invitation email sent successfully');
+    } catch (emailError) {
+      console.error('Failed to send faculty invitation email:', emailError);
+      // Continue execution but log the error
+      console.log('Continuing despite email error...');
+    }
+
+    // Update invitation sent status
+    faculty.invitationSent = true;
+    faculty.invitationSentAt = new Date();
+    await faculty.save();
+    console.log('Faculty invitation status updated');
+
+    res.json({ 
+      message: 'Faculty invitation resent successfully',
+      faculty: {
+        id: faculty._id,
+        name: faculty.name,
+        email: faculty.email,
+        invitationSent: faculty.invitationSent,
+        invitationSentAt: faculty.invitationSentAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error in resendFacultyInvitation:', error);
+    console.error('Error stack:', error.stack);
+    throw error;
+  }
 });
 
 // @desc    Update faculty
