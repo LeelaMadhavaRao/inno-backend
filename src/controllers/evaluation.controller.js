@@ -6,30 +6,31 @@ import User from '../models/user.model.js';
 
 // ==================== EVALUATOR EVALUATION ENDPOINTS ====================
 
-// @desc    Get evaluator's assigned teams
+// @desc    Get all teams available for evaluation (no assignment restrictions)
 // @route   GET /api/evaluations/evaluator/teams
 // @access  Private/Evaluator
 export const getEvaluatorTeams = asyncHandler(async (req, res) => {
-  const evaluator = await Evaluator.findOne({ userId: req.user._id })
-    .populate('assignedTeams.teamId', 'teamName teamLeader projectDetails status');
+  const evaluator = await Evaluator.findOne({ userId: req.user._id });
 
   if (!evaluator) {
     res.status(404);
     throw new Error('Evaluator profile not found');
   }
 
+  // Get all teams available for evaluation
+  const allTeams = await Team.find({}).select('teamName teamLeader projectDetails status');
+
   // Get existing evaluations for this evaluator
   const existingEvaluations = await Evaluation.find({ evaluatorId: req.user._id });
   const evaluatedTeamIds = existingEvaluations.map(evaluation => evaluation.teamId.toString());
 
-  // Combine assigned teams with evaluation status
-  const teamsWithStatus = evaluator.assignedTeams.map(assignment => {
-    const isEvaluated = evaluatedTeamIds.includes(assignment.teamId._id.toString());
-    const evaluation = existingEvaluations.find(evaluation => evaluation.teamId.toString() === assignment.teamId._id.toString());
+  // Add evaluation status to all teams
+  const teamsWithStatus = allTeams.map(team => {
+    const isEvaluated = evaluatedTeamIds.includes(team._id.toString());
+    const evaluation = existingEvaluations.find(evaluation => evaluation.teamId.toString() === team._id.toString());
     
     return {
-      ...assignment.teamId.toObject(),
-      assignedAt: assignment.assignedAt,
+      ...team.toObject(),
       evaluationStatus: isEvaluated ? 'completed' : 'pending',
       evaluationScore: evaluation ? evaluation.totalScore : null,
       evaluationDate: evaluation ? evaluation.createdAt : null,
@@ -42,9 +43,9 @@ export const getEvaluatorTeams = asyncHandler(async (req, res) => {
       name: evaluator.name,
       email: evaluator.email,
       organization: evaluator.organization,
-      totalAssigned: evaluator.assignedTeams.length,
+      totalAvailable: allTeams.length,
       completed: evaluatedTeamIds.length,
-      remaining: evaluator.assignedTeams.length - evaluatedTeamIds.length
+      remaining: allTeams.length - evaluatedTeamIds.length
     },
     teams: teamsWithStatus
   });
@@ -92,23 +93,14 @@ export const getEvaluatorEvaluations = asyncHandler(async (req, res) => {
 export const getTeamForEvaluation = asyncHandler(async (req, res) => {
   const { teamId } = req.params;
 
-  // Check if evaluator is assigned to this team
+  // Verify evaluator exists
   const evaluator = await Evaluator.findOne({ userId: req.user._id });
   if (!evaluator) {
     res.status(404);
     throw new Error('Evaluator profile not found');
   }
 
-  const isAssigned = evaluator.assignedTeams.some(
-    assignment => assignment.teamId.toString() === teamId
-  );
-
-  if (!isAssigned) {
-    res.status(403);
-    throw new Error('You are not assigned to evaluate this team');
-  }
-
-  // Get team details
+  // Get team details (no assignment check - all teams available)
   const team = await Team.findById(teamId);
   if (!team) {
     res.status(404);

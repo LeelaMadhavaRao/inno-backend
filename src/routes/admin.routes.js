@@ -134,6 +134,15 @@ router.route('/evaluators/:id')
 // Evaluation Management Routes
 router.get('/evaluations', getEvaluations);
 router.get('/evaluations/team/:teamId', getTeamEvaluations);
+router.post('/evaluations/release-results', async (req, res) => {
+  try {
+    const { releaseResults } = await import('../controllers/evaluation.controller.js');
+    return releaseResults(req, res);
+  } catch (error) {
+    console.error('Error in release results endpoint:', error);
+    res.status(500).json({ message: 'Release results endpoint not available', error: error.message });
+  }
+});
 
 // User Management Routes
 router.route('/users')
