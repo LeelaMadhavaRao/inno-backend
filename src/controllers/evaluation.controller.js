@@ -177,20 +177,11 @@ export const submitEvaluation = asyncHandler(async (req, res) => {
     throw new Error('Total score does not match sum of criteria scores');
   }
 
-  // Check if evaluator is assigned to this team
+  // Check if evaluator exists (no assignment restrictions)
   const evaluator = await Evaluator.findOne({ userId: req.user._id });
   if (!evaluator) {
     res.status(404);
     throw new Error('Evaluator profile not found');
-  }
-
-  const isAssigned = evaluator.assignedTeams.some(
-    assignment => assignment.teamId.toString() === teamId
-  );
-
-  if (!isAssigned) {
-    res.status(403);
-    throw new Error('You are not assigned to evaluate this team');
   }
 
   // Check if already evaluated
