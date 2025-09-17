@@ -1637,3 +1637,177 @@ export const resetAllLaunches = asyncHandler(async (req, res) => {
     });
   }
 });
+
+// ==================== EVALUATION RESULTS MANAGEMENT ====================
+
+// @desc    Check if results are released
+// @route   GET /api/admin/evaluations/results/status
+// @access  Private/Admin
+export const getResultsStatus = asyncHandler(async (req, res) => {
+  try {
+    // Check if there's a global setting for results release
+    // For now, we'll use a simple approach - check if any team has publicRank set
+    const teamsWithPublicRanks = await Team.countDocuments({ publicRank: { $exists: true, $ne: null } });
+    const resultsReleased = teamsWithPublicRanks > 0;
+
+    // Get evaluation summary
+    const totalTeams = await Team.countDocuments();
+    const completedEvaluations = await Team.countDocuments({ evaluationStatus: 'completed' });
+    const totalEvaluators = await Evaluator.countDocuments();
+
+    res.json({
+      resultsReleased,
+      evaluationSummary: {
+        totalTeams,
+        completedEvaluations,
+        totalEvaluators,
+        completionPercentage: totalTeams > 0 ? ((completedEvaluations / totalTeams) * 100).toFixed(1) : 0
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error checking results status:', error);
+    res.status(500);
+    throw new Error(`Failed to check results status: ${error.message}`);
+  }
+});
+
+// @desc    Release evaluation results to teams and faculty
+// @route   POST /api/admin/evaluations/results/release
+// @access  Private/Admin
+export const releaseResults = asyncHandler(async (req, res) => {
+  try {
+    console.log('🚀 Starting results release process...');
+
+    // Get all teams with evaluations and calculate final rankings
+    const teams = await Team.find({ evaluationStatus: { $in: ['completed', 'in_progress'] } })
+      .sort({ finalScore: -1, finalRank: 1 });
+
+    if (teams.length === 0) {
+      res.status(400);
+      throw new Error('No teams with evaluations found to release results');
+    }
+
+    console.log(`📊 Found ${teams.length} teams with evaluations`);
+
+    // Update each team with public rankings and release status
+    const updatePromises = teams.map(async (team, index) => {
+      team.publicRank = index + 1;
+      team.resultsReleased = true;
+      team.resultsReleasedAt = new Date();
+      team.resultsReleasedBy = req.user._id;
+      return team.save();
+    });
+
+    await Promise.all(updatePromises);
+
+    // Create a results summary for logging
+    const resultsSummary = teams.map((team, index) => ({
+      rank: index + 1,
+      teamName: team.teamName,
+      finalScore: team.finalScore,
+      evaluationStatus: team.evaluationStatus,
+      evaluationsCount: team.evaluationScores.length
+    }));
+
+    console.log('🏆 Final Rankings:', resultsSummary);
+
+    // You could also send emails to teams about results release here
+    // const emailService = getEmailService();
+    // await emailService.sendResultsReleaseNotification(teams);
+
+    res.json({
+      message: 'Evaluation results released successfully',
+      releasedTeams: teams.length,
+      rankings: resultsSummary,
+      releasedAt: new Date().toISOString(),
+      releasedBy: req.user.email
+    });
+
+  } catch (error) {
+    console.error('❌ Error releasing results:', error);
+    res.status(500);
+    throw new Error(`Failed to release results: ${error.message}`);
+  }
+});
+
+// @desc    Hide/retract evaluation results
+// @route   POST /api/admin/evaluations/results/retract
+// @access  Private/Admin
+export const retractResults = asyncHandler(async (req, res) => {
+  try {
+    console.log('🔒 Retracting evaluation results...');
+
+    // Remove public rankings from all teams
+    const result = await Team.updateMany(
+      { publicRank: { $exists: true } },
+      { 
+        $unset: { 
+          publicRank: 1, 
+          resultsReleased: 1, 
+          resultsReleasedAt: 1, 
+          resultsReleasedBy: 1 
+        } 
+      }
+    );
+
+    console.log(`📊 Retracted results for ${result.modifiedCount} teams`);
+
+    res.json({
+      message: 'Evaluation results retracted successfully',
+      retractedTeams: result.modifiedCount,
+      retractedAt: new Date().toISOString(),
+      retractedBy: req.user.email
+    });
+
+  } catch (error) {
+    console.error('❌ Error retracting results:', error);
+    res.status(500);
+    throw new Error(`Failed to retract results: ${error.message}`);
+  }
+});
+
+// @desc    Get public results for teams/faculty view
+// @route   GET /api/evaluations/results/public
+// @access  Private (Teams/Faculty)
+export const getPublicResults = asyncHandler(async (req, res) => {
+  try {
+    // Check if results are released
+    const resultsReleased = await Team.countDocuments({ publicRank: { $exists: true } }) > 0;
+
+    if (!resultsReleased) {
+      return res.json({
+        resultsReleased: false,
+        message: 'Evaluation results have not been released yet'
+      });
+    }
+
+    // Get teams with public rankings
+    const teams = await Team.find({ publicRank: { $exists: true, $ne: null } })
+      .select('teamName teamLeader projectDetails publicRank finalScore evaluationStatus evaluationScores')
+      .populate('teamLeader', 'name email')
+      .sort({ publicRank: 1 });
+
+    // Format for public display
+    const publicResults = teams.map(team => ({
+      rank: team.publicRank,
+      teamName: team.teamName,
+      teamLeader: team.teamLeader?.name,
+      projectTitle: team.projectDetails?.title || team.teamName,
+      finalScore: team.finalScore,
+      evaluationsCount: team.evaluationScores?.length || 0,
+      status: team.evaluationStatus
+    }));
+
+    res.json({
+      resultsReleased: true,
+      totalTeams: teams.length,
+      results: publicResults,
+      releasedAt: teams[0]?.resultsReleasedAt || null
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching public results:', error);
+    res.status(500);
+    throw new Error(`Failed to fetch public results: ${error.message}`);
+  }
+});

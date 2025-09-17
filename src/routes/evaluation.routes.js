@@ -21,6 +21,8 @@ import {
   getEvaluationCriteria
 } from '../controllers/evaluation.controller.js';
 
+import { getPublicResults } from '../controllers/admin.controller.js';
+
 const router = express.Router();
 
 // ==================== EVALUATOR ROUTES ====================
@@ -56,6 +58,9 @@ router.get('/admin/team/:teamId', protect, authorize('admin'), getTeamEvaluation
 router.post('/admin/release-results', protect, authorize('admin'), releaseResults);
 
 // ==================== RESULTS ROUTES ====================
+// Get public results (accessible to all authenticated users)
+router.get('/results/public', protect, getPublicResults);
+
 // Get results for team view
 router.get('/results/team', protect, authorize('team'), getTeamResults);
 

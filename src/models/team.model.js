@@ -97,6 +97,16 @@ const teamSchema = new mongoose.Schema({
   }],
   finalRank: Number,
   finalScore: Number,
+  publicRank: Number,
+  resultsReleased: {
+    type: Boolean,
+    default: false,
+  },
+  resultsReleasedAt: Date,
+  resultsReleasedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
 }, {
   timestamps: true,
 });
