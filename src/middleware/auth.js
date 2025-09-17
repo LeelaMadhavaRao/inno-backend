@@ -49,3 +49,18 @@ export const isFaculty = (req, res, next) => {
     throw new Error('Not authorized as faculty');
   }
 };
+
+// Generic role authorization middleware
+export const authorize = (roles) => {
+  return (req, res, next) => {
+    // Convert single role to array for consistency
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    
+    if (req.user && allowedRoles.includes(req.user.role)) {
+      next();
+    } else {
+      res.status(403);
+      throw new Error(`Not authorized. Required role(s): ${allowedRoles.join(', ')}`);
+    }
+  };
+};
