@@ -10,45 +10,74 @@ import User from '../models/user.model.js';
 // @route   GET /api/evaluations/evaluator/teams
 // @access  Private/Evaluator
 export const getEvaluatorTeams = asyncHandler(async (req, res) => {
-  const evaluator = await Evaluator.findOne({ userId: req.user._id });
-
-  if (!evaluator) {
-    res.status(404);
-    throw new Error('Evaluator profile not found');
-  }
-
-  // Get all teams available for evaluation
-  const allTeams = await Team.find({}).select('teamName teamLeader projectDetails status');
-
-  // Get existing evaluations for this evaluator
-  const existingEvaluations = await Evaluation.find({ evaluatorId: req.user._id });
-  const evaluatedTeamIds = existingEvaluations.map(evaluation => evaluation.teamId.toString());
-
-  // Add evaluation status to all teams
-  const teamsWithStatus = allTeams.map(team => {
-    const isEvaluated = evaluatedTeamIds.includes(team._id.toString());
-    const evaluation = existingEvaluations.find(evaluation => evaluation.teamId.toString() === team._id.toString());
+  try {
+    console.log('🔍 Getting evaluator teams for user:', req.user._id);
     
-    return {
-      ...team.toObject(),
-      evaluationStatus: isEvaluated ? 'completed' : 'pending',
-      evaluationScore: evaluation ? evaluation.totalScore : null,
-      evaluationDate: evaluation ? evaluation.createdAt : null,
-      evaluationId: evaluation ? evaluation._id : null
-    };
-  });
+    const evaluator = await Evaluator.findOne({ userId: req.user._id }).lean();
 
-  res.json({
-    evaluator: {
-      name: evaluator.name,
-      email: evaluator.email,
-      organization: evaluator.organization,
-      totalAvailable: allTeams.length,
-      completed: evaluatedTeamIds.length,
-      remaining: allTeams.length - evaluatedTeamIds.length
-    },
-    teams: teamsWithStatus
-  });
+    if (!evaluator) {
+      res.status(404);
+      throw new Error('Evaluator profile not found');
+    }
+
+    console.log('👤 Found evaluator:', evaluator.name);
+
+    // Get all teams available for evaluation with minimal data
+    const allTeams = await Team.find({})
+      .select('teamName teamLeader projectDetails status createdAt')
+      .lean()
+      .limit(50); // Limit to prevent timeout
+
+    console.log('📋 Found teams:', allTeams.length);
+
+    // Get existing evaluations for this evaluator in a single query
+    const existingEvaluations = await Evaluation.find({ evaluatorId: req.user._id })
+      .select('teamId totalScore createdAt')
+      .lean();
+    
+    console.log('✅ Found evaluations:', existingEvaluations.length);
+
+    const evaluatedTeamIds = new Set(existingEvaluations.map(evaluation => evaluation.teamId.toString()));
+
+    // Add evaluation status to all teams
+    const teamsWithStatus = allTeams.map(team => {
+      const isEvaluated = evaluatedTeamIds.has(team._id.toString());
+      const evaluation = existingEvaluations.find(evaluation => evaluation.teamId.toString() === team._id.toString());
+      
+      return {
+        _id: team._id,
+        teamName: team.teamName,
+        teamLeader: team.teamLeader,
+        projectTitle: team.projectDetails?.projectTitle || 'No title',
+        status: team.status,
+        evaluationStatus: isEvaluated ? 'completed' : 'pending',
+        evaluationScore: evaluation ? evaluation.totalScore : null,
+        evaluationDate: evaluation ? evaluation.createdAt : null,
+        evaluationId: evaluation ? evaluation._id : null
+      };
+    });
+
+    const response = {
+      evaluator: {
+        name: evaluator.name,
+        email: evaluator.email,
+        organization: evaluator.organization,
+        totalAvailable: allTeams.length,
+        completed: existingEvaluations.length,
+        remaining: allTeams.length - existingEvaluations.length
+      },
+      teams: teamsWithStatus
+    };
+
+    console.log('📤 Sending response with', teamsWithStatus.length, 'teams');
+    res.json(response);
+  } catch (error) {
+    console.error('❌ Error in getEvaluatorTeams:', error);
+    res.status(500).json({ 
+      message: 'Failed to fetch teams for evaluation', 
+      error: error.message 
+    });
+  }
 });
 
 // @desc    Get evaluator's completed evaluations
