@@ -401,14 +401,24 @@ export const getEvaluationOverview = asyncHandler(async (req, res) => {
   // Calculate team rankings
   const rankedTeams = teams
     .filter(team => team.evaluationScores.length > 0)
-    .map((team, index) => ({
-      ...team.toObject(),
-      rank: index + 1,
-      averageScore: team.calculateAverageScore(),
-      evaluationsCompleted: team.evaluationScores.length,
-      evaluationsRemaining: totalEvaluators - team.evaluationScores.length,
-      completionPercentage: ((team.evaluationScores.length / totalEvaluators) * 100).toFixed(1)
-    }));
+    .map((team, index) => {
+      const actualTotalScore = team.evaluationScores.reduce((sum, score) => sum + (score.totalScore || 0), 0);
+      const totalPossibleScore = totalEvaluators * 100;
+      const scorePercentage = totalPossibleScore > 0 ? ((actualTotalScore / totalPossibleScore) * 100).toFixed(1) : 0;
+      
+      return {
+        ...team.toObject(),
+        rank: index + 1,
+        averageScore: team.calculateAverageScore(),
+        actualTotalScore,
+        totalPossibleScore,
+        scorePercentage: parseFloat(scorePercentage),
+        evaluationsCompleted: team.evaluationScores.length,
+        evaluationsRemaining: totalEvaluators - team.evaluationScores.length,
+        completionPercentage: ((team.evaluationScores.length / totalEvaluators) * 100).toFixed(1)
+      };
+    })
+    .sort((a, b) => b.actualTotalScore - a.actualTotalScore);
 
   res.json({
     statistics: {
@@ -417,7 +427,9 @@ export const getEvaluationOverview = asyncHandler(async (req, res) => {
       totalPossibleEvaluations,
       completedEvaluations,
       completionPercentage,
-      teamsFullyEvaluated: teams.filter(team => team.evaluationStatus === 'completed').length
+      teamsFullyEvaluated: teams.filter(team => team.evaluationStatus === 'completed').length,
+      maxPossibleScorePerTeam: totalEvaluators * 100,
+      maxPossibleScoreOverall: totalTeams * totalEvaluators * 100
     },
     teams: rankedTeams,
     evaluators: evaluators.map(evaluator => ({

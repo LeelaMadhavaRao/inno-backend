@@ -891,16 +891,24 @@ export const getEvaluations = asyncHandler(async (req, res) => {
   // Calculate team rankings
   const teamsWithScores = teams.map(team => {
     const averageScore = team.calculateAverageScore();
+    const totalPossibleScore = totalEvaluators * 100; // Each evaluator can give max 100 points
+    const actualTotalScore = team.evaluationScores.reduce((sum, score) => sum + (score.totalScore || 0), 0);
+    const scorePercentage = totalPossibleScore > 0 ? ((actualTotalScore / totalPossibleScore) * 100).toFixed(1) : 0;
+    
     return {
       ...team.toObject(),
       averageScore: parseFloat(averageScore.toFixed(1)),
+      actualTotalScore, // Sum of all evaluator scores
+      totalPossibleScore, // Maximum possible score (evaluators * 100)
+      scorePercentage: parseFloat(scorePercentage), // Percentage of total possible
       evaluationsCompleted: team.evaluationScores.length,
-      evaluationsRemaining: totalEvaluators - team.evaluationScores.length
+      evaluationsRemaining: totalEvaluators - team.evaluationScores.length,
+      completionPercentage: totalEvaluators > 0 ? ((team.evaluationScores.length / totalEvaluators) * 100).toFixed(1) : 0
     };
   });
 
-  // Sort by average score
-  teamsWithScores.sort((a, b) => b.averageScore - a.averageScore);
+  // Sort by actual total score (highest first)
+  teamsWithScores.sort((a, b) => b.actualTotalScore - a.actualTotalScore);
 
   // Add ranking
   teamsWithScores.forEach((team, index) => {
