@@ -535,39 +535,73 @@ export const resendFacultyInvitation = asyncHandler(async (req, res) => {
   if (!faculty.userId) {
     console.error('Faculty userId not found, attempting to create user account');
     
-    // Try to find existing user with same email and role
-    let user = await User.findOne({ email: faculty.email, role: 'faculty' });
-    
-    if (!user) {
-      // Create user account if it doesn't exist
-      const defaultPassword = crypto.randomBytes(8).toString('hex');
-      user = await User.create({
-        name: faculty.name,
-        email: faculty.email,
-        password: defaultPassword,
-        role: 'faculty',
-        status: 'active'
-      });
-      console.log('Created new user account for faculty:', user._id);
+    try {
+      // Try to find existing user with same email and role
+      let user = await User.findOne({ email: faculty.email, role: 'faculty' });
+      
+      if (!user) {
+        // Also check if there's a user with same email but different role
+        const existingUserAnyRole = await User.findOne({ email: faculty.email });
+        if (existingUserAnyRole) {
+          console.log('User exists with different role:', existingUserAnyRole.role);
+          // Update the existing user's role to faculty if needed
+          if (existingUserAnyRole.role !== 'faculty') {
+            existingUserAnyRole.role = 'faculty';
+            await existingUserAnyRole.save();
+            user = existingUserAnyRole;
+            console.log('Updated existing user role to faculty');
+          }
+        } else {
+          // Create user account if it doesn't exist
+          const defaultPassword = crypto.randomBytes(8).toString('hex');
+          console.log('Creating new user account with email:', faculty.email);
+          
+          user = await User.create({
+            name: faculty.name,
+            email: faculty.email,
+            password: defaultPassword,
+            role: 'faculty',
+            status: 'active'
+          });
+          console.log('Created new user account for faculty:', user._id);
+        }
+      } else {
+        console.log('Found existing user account:', user._id);
+      }
+      
+      // Link the user to faculty
+      console.log('Linking user to faculty...');
+      faculty.userId = user._id;
+      await faculty.save();
+      console.log('Linked user account to faculty');
+      
+      // Re-populate the userId field
+      console.log('Re-populating userId field...');
+      await faculty.populate('userId');
+      console.log('Successfully populated userId field');
+      
+    } catch (userCreationError) {
+      console.error('Error during user creation/linking:', userCreationError);
+      res.status(500);
+      throw new Error(`Failed to create or link user account: ${userCreationError.message}`);
     }
-    
-    // Link the user to faculty
-    faculty.userId = user._id;
-    await faculty.save();
-    console.log('Linked user account to faculty');
-    
-    // Re-populate the userId field
-    await faculty.populate('userId');
   }
 
   // Generate new password
   const newPassword = crypto.randomBytes(8).toString('hex');
   console.log('Generated new password for faculty:', faculty.email);
   
-  // Update user password
-  faculty.userId.password = newPassword;
-  await faculty.userId.save();
-  console.log('Password updated for user:', faculty.userId.email);
+  try {
+    // Update user password
+    console.log('Updating user password...');
+    faculty.userId.password = newPassword;
+    await faculty.userId.save();
+    console.log('Password updated for user:', faculty.userId.email);
+  } catch (passwordError) {
+    console.error('Error updating password:', passwordError);
+    res.status(500);
+    throw new Error(`Failed to update password: ${passwordError.message}`);
+  }
 
   // Send invitation email
   try {
@@ -586,10 +620,17 @@ export const resendFacultyInvitation = asyncHandler(async (req, res) => {
   }
 
   // Update invitation sent status
-  faculty.invitationSent = true;
-  faculty.invitationSentAt = new Date();
-  await faculty.save();
-  console.log('Faculty invitation status updated');
+  try {
+    console.log('Updating faculty invitation status...');
+    faculty.invitationSent = true;
+    faculty.invitationSentAt = new Date();
+    await faculty.save();
+    console.log('Faculty invitation status updated');
+  } catch (statusError) {
+    console.error('Error updating faculty status:', statusError);
+    // Don't throw error here since the main operation succeeded
+    console.log('Continuing despite status update error...');
+  }
 
   res.json({ 
     success: true,
