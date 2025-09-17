@@ -81,16 +81,19 @@ const teamSchema = new mongoose.Schema({
       ref: 'User',
     },
     evaluatorName: String,
-    scores: {
-      innovation: { type: Number, min: 0, max: 100 },
-      technical: { type: Number, min: 0, max: 100 },
-      business: { type: Number, min: 0, max: 100 },
-      presentation: { type: Number, min: 0, max: 100 },
-      feasibility: { type: Number, min: 0, max: 100 },
+    criteria: {
+      problemStatement: { type: Number, min: 0, max: 25 },
+      teamInvolvement: { type: Number, min: 0, max: 25 },
+      leanCanvas: { type: Number, min: 0, max: 25 },
+      prototypeQuality: { type: Number, min: 0, max: 25 }
     },
     totalScore: { type: Number, min: 0, max: 100 },
     feedback: String,
     submittedAt: Date,
+    evaluationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Evaluation',
+    },
   }],
   finalRank: Number,
   finalScore: Number,

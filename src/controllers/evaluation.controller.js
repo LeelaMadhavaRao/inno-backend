@@ -177,11 +177,18 @@ export const submitEvaluation = asyncHandler(async (req, res) => {
     throw new Error('Total score does not match sum of criteria scores');
   }
 
-  // Check if evaluator exists (no assignment restrictions)
+  // Check if evaluator exists
   const evaluator = await Evaluator.findOne({ userId: req.user._id });
   if (!evaluator) {
     res.status(404);
     throw new Error('Evaluator profile not found');
+  }
+
+  // Check if team exists
+  const team = await Team.findById(teamId);
+  if (!team) {
+    res.status(404);
+    throw new Error('Team not found');
   }
 
   // Check if already evaluated
@@ -195,45 +202,84 @@ export const submitEvaluation = asyncHandler(async (req, res) => {
     throw new Error('You have already evaluated this team');
   }
 
-  // Create evaluation
-  const evaluation = await Evaluation.create({
-    teamId,
-    evaluatorId: req.user._id,
-    criteria,
-    feedback: feedback || '',
-    totalScore,
-    submittedAt: new Date(),
-    status: 'submitted'
-  });
+  try {
+    // Create evaluation record
+    const evaluation = await Evaluation.create({
+      teamId,
+      evaluatorId: req.user._id,
+      criteria,
+      feedback: feedback || '',
+      totalScore,
+      submittedAt: new Date(),
+      status: 'submitted'
+    });
 
-  // Update team's evaluation scores
-  const team = await Team.findById(teamId);
-  team.evaluationScores.push({
-    evaluatorId: req.user._id,
-    score: totalScore,
-    criteria,
-    feedback,
-    submittedAt: new Date()
-  });
+    // Update team's evaluation scores with proper structure
+    team.evaluationScores.push({
+      evaluatorId: req.user._id,
+      evaluatorName: evaluator.name,
+      criteria,
+      feedback: feedback || '',
+      totalScore,
+      submittedAt: new Date(),
+      evaluationId: evaluation._id
+    });
 
-  // Calculate if all evaluations are complete
-  const totalEvaluators = await Evaluator.countDocuments();
-  if (team.evaluationScores.length >= totalEvaluators) {
-    team.evaluationStatus = 'completed';
-    team.finalScore = team.calculateAverageScore();
+    // Calculate if all evaluations are complete
+    const totalEvaluators = await Evaluator.countDocuments();
+    if (team.evaluationScores.length >= totalEvaluators) {
+      team.evaluationStatus = 'completed';
+      team.finalScore = team.calculateAverageScore();
+    } else if (team.evaluationStatus === 'not_started') {
+      team.evaluationStatus = 'in_progress';
+    }
+
+    await team.save();
+
+    // Update evaluator stats and tracking
+    // Remove this team from pending teams if it exists
+    evaluator.pendingTeams = evaluator.pendingTeams.filter(
+      pending => pending.teamId.toString() !== teamId.toString()
+    );
+
+    // Add to evaluated teams
+    evaluator.evaluatedTeams.push({
+      teamId: team._id,
+      teamName: team.teamName,
+      evaluationId: evaluation._id,
+      score: totalScore,
+      evaluatedAt: new Date(),
+      status: 'completed'
+    });
+
+    // Update evaluation completed count
+    evaluator.evaluationsCompleted = evaluator.evaluatedTeams.length;
+
+    await evaluator.save();
+
+    console.log(`✅ Evaluation submitted successfully: ${evaluator.name} evaluated ${team.teamName} with score ${totalScore}`);
+
+    res.status(201).json({
+      message: 'Evaluation submitted successfully',
+      evaluation: {
+        _id: evaluation._id,
+        teamId: evaluation.teamId,
+        totalScore: evaluation.totalScore,
+        submittedAt: evaluation.submittedAt
+      },
+      teamStatus: team.evaluationStatus,
+      evaluatorStats: {
+        evaluationsCompleted: evaluator.evaluationsCompleted,
+        evaluatedTeams: evaluator.evaluatedTeams.length,
+        pendingTeams: evaluator.pendingTeams.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error submitting evaluation:', error);
+    res.status(500);
+    throw new Error(`Failed to submit evaluation: ${error.message}`);
   }
-
-  await team.save();
-
-  // Update evaluator stats
-  evaluator.evaluationsCompleted += 1;
-  await evaluator.save();
-
-  res.status(201).json({
-    message: 'Evaluation submitted successfully',
-    evaluation,
-    teamStatus: team.evaluationStatus
-  });
 });
 
 // @desc    Update existing evaluation

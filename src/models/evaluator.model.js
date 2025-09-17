@@ -23,8 +23,8 @@ const evaluatorSchema = new mongoose.Schema({
   designation: String,
   expertise: [String],
   experience: {
-    type: mongoose.Schema.Types.Mixed, // Allow both string and object
-    default: null
+    years: Number,
+    description: String,
   },
   type: {
     type: String,
@@ -76,6 +76,37 @@ const evaluatorSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  evaluatedTeams: [{
+    teamId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Team',
+    },
+    teamName: String,
+    evaluationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Evaluation',
+    },
+    score: Number,
+    evaluatedAt: Date,
+    status: {
+      type: String,
+      enum: ['completed'],
+      default: 'completed',
+    },
+  }],
+  pendingTeams: [{
+    teamId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Team',
+    },
+    teamName: String,
+    assignedAt: Date,
+    status: {
+      type: String,
+      enum: ['pending'],
+      default: 'pending',
+    },
+  }],
 }, {
   timestamps: true,
 });

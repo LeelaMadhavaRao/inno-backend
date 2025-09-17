@@ -880,114 +880,133 @@ export const resendEvaluatorInvitation = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/evaluations
 // @access  Private/Admin
 export const getEvaluations = asyncHandler(async (req, res) => {
-  const teams = await Team.find()
-    .populate('evaluationScores.evaluatorId', 'name email')
-    .select('teamName teamLeader evaluationScores evaluationStatus finalRank finalScore')
-    .sort({ finalRank: 1, finalScore: -1 });
+  try {
+    // Get teams with populated evaluation scores
+    const teams = await Team.find()
+      .populate('evaluationScores.evaluatorId', 'name email')
+      .select('teamName teamLeader projectDetails evaluationScores evaluationStatus finalRank finalScore')
+      .sort({ finalRank: 1, finalScore: -1 });
 
-  // Get total number of evaluators
-  const totalEvaluators = await Evaluator.countDocuments();
+    // Get total number of evaluators
+    const totalEvaluators = await Evaluator.countDocuments();
 
-  // Calculate team rankings
-  const teamsWithScores = teams.map(team => {
-    const averageScore = team.calculateAverageScore();
-    const totalPossibleScore = totalEvaluators * 100; // Each evaluator can give max 100 points
-    const actualTotalScore = team.evaluationScores.reduce((sum, score) => sum + (score.totalScore || 0), 0);
-    const scorePercentage = totalPossibleScore > 0 ? ((actualTotalScore / totalPossibleScore) * 100).toFixed(1) : 0;
-    
-    return {
-      ...team.toObject(),
-      averageScore: parseFloat(averageScore.toFixed(1)),
-      actualTotalScore, // Sum of all evaluator scores
-      totalPossibleScore, // Maximum possible score (evaluators * 100)
-      scorePercentage: parseFloat(scorePercentage), // Percentage of total possible
-      evaluationsCompleted: team.evaluationScores.length,
-      evaluationsRemaining: totalEvaluators - team.evaluationScores.length,
-      completionPercentage: totalEvaluators > 0 ? ((team.evaluationScores.length / totalEvaluators) * 100).toFixed(1) : 0
-    };
-  });
-
-  // Sort by actual total score (highest first)
-  teamsWithScores.sort((a, b) => b.actualTotalScore - a.actualTotalScore);
-
-  // Add ranking
-  teamsWithScores.forEach((team, index) => {
-    team.currentRank = index + 1;
-  });
-
-  // Get evaluator data with their evaluation details
-  const evaluators = await Evaluator.find()
-    .populate('userId', 'name email')
-    .select('name email organization type userId');
-
-  const totalTeams = teams.length;
-  
-  // Calculate evaluator statistics
-  const evaluatorsWithStats = evaluators.map(evaluator => {
-    // Find all teams this evaluator has evaluated
-    const evaluatedTeams = teams.filter(team => 
-      team.evaluationScores.some(score => 
-        score.evaluatorId && score.evaluatorId._id.toString() === evaluator._id.toString()
-      )
-    ).map(team => {
-      const evaluation = team.evaluationScores.find(score => 
-        score.evaluatorId && score.evaluatorId._id.toString() === evaluator._id.toString()
-      );
+    // Calculate team rankings and scores
+    const teamsWithScores = teams.map(team => {
+      const averageScore = team.calculateAverageScore();
+      const totalPossibleScore = totalEvaluators * 100; // Each evaluator can give max 100 points
+      const actualTotalScore = team.evaluationScores.reduce((sum, score) => sum + (score.totalScore || 0), 0);
+      const scorePercentage = totalPossibleScore > 0 ? ((actualTotalScore / totalPossibleScore) * 100).toFixed(1) : 0;
+      
+      // Format evaluations for display
+      const evaluations = team.evaluationScores.map(score => ({
+        evaluatorId: score.evaluatorId,
+        criteria: score.criteria,
+        totalScore: score.totalScore,
+        feedback: score.feedback,
+        submittedAt: score.submittedAt
+      }));
+      
       return {
-        teamId: team._id,
+        _id: team._id,
         teamName: team.teamName,
         teamLeader: team.teamLeader,
-        projectTitle: team.projectTitle,
-        score: evaluation?.totalScore || 0,
-        evaluatedAt: evaluation?.submittedAt || evaluation?.createdAt,
-        criteria: evaluation?.criteria
+        projectTitle: team.projectDetails?.title || team.teamName,
+        averageScore: parseFloat(averageScore.toFixed(1)),
+        actualTotalScore, // Sum of all evaluator scores
+        totalPossibleScore, // Maximum possible score (evaluators * 100)
+        scorePercentage: parseFloat(scorePercentage), // Percentage of total possible
+        evaluationsCompleted: team.evaluationScores.length,
+        evaluationsRemaining: totalEvaluators - team.evaluationScores.length,
+        completionPercentage: totalEvaluators > 0 ? ((team.evaluationScores.length / totalEvaluators) * 100).toFixed(1) : 0,
+        evaluationStatus: team.evaluationStatus,
+        evaluations: evaluations // Individual evaluations for detail view
       };
     });
 
-    // Find teams this evaluator hasn't evaluated yet
-    const pendingTeams = teams.filter(team => 
-      !team.evaluationScores.some(score => 
-        score.evaluatorId && score.evaluatorId._id.toString() === evaluator._id.toString()
-      )
-    ).map(team => ({
-      teamId: team._id,
-      teamName: team.teamName,
-      teamLeader: team.teamLeader,
-      projectTitle: team.projectTitle
-    }));
+    // Sort by actual total score (highest first) and add ranking
+    teamsWithScores.sort((a, b) => b.actualTotalScore - a.actualTotalScore);
+    teamsWithScores.forEach((team, index) => {
+      team.currentRank = index + 1;
+    });
 
-    const evaluatedCount = evaluatedTeams.length;
-    const pendingCount = pendingTeams.length;
-    const averageScore = evaluatedCount > 0 
-      ? evaluatedTeams.reduce((sum, team) => sum + team.score, 0) / evaluatedCount 
-      : 0;
+    // Get evaluator data with their detailed evaluation statistics
+    const evaluators = await Evaluator.find()
+      .populate('userId', 'name email')
+      .populate('evaluatedTeams.teamId', 'teamName teamLeader projectDetails')
+      .populate('pendingTeams.teamId', 'teamName teamLeader projectDetails')
+      .select('name email organization type userId evaluatedTeams pendingTeams evaluationsCompleted totalEvaluationsAssigned');
 
-    return {
-      ...evaluator.toObject(),
-      name: evaluator.userId?.name || evaluator.name,
-      email: evaluator.userId?.email || evaluator.email,
-      evaluatedCount,
-      pendingCount,
-      totalTeams,
-      completionPercentage: totalTeams > 0 ? ((evaluatedCount / totalTeams) * 100).toFixed(1) : 0,
-      averageScore: parseFloat(averageScore.toFixed(1)),
-      evaluatedTeams,
-      pendingTeams
-    };
-  });
+    // Calculate evaluator statistics with proper data
+    const evaluatorsWithStats = evaluators.map(evaluator => {
+      const evaluatedCount = evaluator.evaluatedTeams?.length || 0;
+      const pendingCount = evaluator.pendingTeams?.length || 0;
+      const totalTeams = evaluatedCount + pendingCount;
 
-  res.json({
-    teams: teamsWithScores,
-    evaluators: evaluatorsWithStats,
-    summary: {
+      // Calculate average score from evaluated teams
+      const averageScore = evaluatedCount > 0 
+        ? evaluator.evaluatedTeams.reduce((sum, team) => sum + (team.score || 0), 0) / evaluatedCount 
+        : 0;
+
+      // Format evaluated teams for detail view
+      const evaluatedTeams = evaluator.evaluatedTeams?.map(evalTeam => ({
+        teamId: evalTeam.teamId?._id,
+        teamName: evalTeam.teamId?.teamName || evalTeam.teamName,
+        teamLeader: evalTeam.teamId?.teamLeader,
+        projectTitle: evalTeam.teamId?.projectDetails?.title || evalTeam.teamId?.teamName || evalTeam.teamName,
+        score: evalTeam.score,
+        evaluatedAt: evalTeam.evaluatedAt
+      })) || [];
+
+      // Format pending teams for detail view
+      const pendingTeams = evaluator.pendingTeams?.map(pendingTeam => ({
+        teamId: pendingTeam.teamId?._id,
+        teamName: pendingTeam.teamId?.teamName || pendingTeam.teamName,
+        teamLeader: pendingTeam.teamId?.teamLeader,
+        projectTitle: pendingTeam.teamId?.projectDetails?.title || pendingTeam.teamId?.teamName || pendingTeam.teamName
+      })) || [];
+
+      return {
+        _id: evaluator._id,
+        name: evaluator.userId?.name || evaluator.name,
+        email: evaluator.userId?.email || evaluator.email,
+        organization: evaluator.organization,
+        type: evaluator.type,
+        evaluatedCount,
+        pendingCount,
+        totalTeams,
+        completionPercentage: totalTeams > 0 ? ((evaluatedCount / totalTeams) * 100).toFixed(1) : 0,
+        averageScore: parseFloat(averageScore.toFixed(1)),
+        evaluatedTeams,
+        pendingTeams
+      };
+    });
+
+    // Calculate summary statistics
+    const summary = {
       totalTeams: teams.length,
       totalEvaluators: evaluators.length,
       totalEvaluations: teams.reduce((sum, team) => sum + team.evaluationScores.length, 0),
       averageCompletionRate: evaluators.length > 0 
         ? (evaluatorsWithStats.reduce((sum, ev) => sum + parseFloat(ev.completionPercentage), 0) / evaluators.length).toFixed(1)
-        : 0
-    }
-  });
+        : 0,
+      completedTeams: teams.filter(team => team.evaluationStatus === 'completed').length,
+      inProgressTeams: teams.filter(team => team.evaluationStatus === 'in_progress').length,
+      pendingTeams: teams.filter(team => team.evaluationStatus === 'not_started').length
+    };
+
+    console.log(`📊 Admin evaluations data: ${teams.length} teams, ${evaluators.length} evaluators, ${summary.totalEvaluations} evaluations`);
+
+    res.json({
+      teams: teamsWithScores,
+      evaluators: evaluatorsWithStats,
+      summary
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching evaluation data:', error);
+    res.status(500);
+    throw new Error(`Failed to fetch evaluation data: ${error.message}`);
+  }
 });
 
 // @desc    Get detailed evaluation for a team
