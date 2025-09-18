@@ -295,7 +295,7 @@ class EmailService {
         </div>
         
         <div style="padding: 35px; background: white;">
-          <h2 style="color: #333; margin-bottom: 20px; text-align: center;">Dear ${facultyData.name} Sir! 👋</h2>
+          <h2 style="color: #333; margin-bottom: 20px; text-align: center;">Dear ${facultyData.name} 👋</h2>
           
           <p style="color: #666; line-height: 1.6; text-align: center; margin-bottom: 25px;">
             We are honored to invite you to be part of Innoverse 2025 as a faculty member. Your expertise in 
