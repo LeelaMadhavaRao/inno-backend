@@ -32,6 +32,7 @@ import posterLaunchRoutes from './routes/posterLaunch.routes.js';
 
 // Import models for public endpoints
 import Team from './models/team.model.js';
+import Evaluator from './models/evaluator.model.js';
 
 // Initialize express
 const app = express();
@@ -140,6 +141,54 @@ app.get('/api/teams', async (req, res) => {
   }
 });
 
+// Public evaluators endpoint (no auth required)
+app.get('/api/evaluators/public', async (req, res) => {
+  try {
+    console.log('🏆 Public evaluators endpoint request received from:', req.ip);
+    console.log('🏆 Fetching evaluators from database...');
+    
+    // Set explicit CORS headers
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    // Add timeout to database query
+    const evaluators = await Evaluator.find({ status: 'active' })
+      .select('name designation organization expertise type experience qualifications linkedIn portfolio -_id')
+      .sort({ createdAt: -1 })
+      .maxTimeMS(10000); // 10 second timeout
+    
+    console.log(`✅ Found ${evaluators.length} active evaluators`);
+    res.json({
+      success: true,
+      data: evaluators,
+      count: evaluators.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error fetching evaluators:', error);
+    
+    // If it's a timeout error, return a simpler response
+    if (error.name === 'MongooseTimeoutError' || error.code === 'ETIMEDOUT') {
+      console.log('⏰ Database timeout, returning empty evaluators array');
+      res.json({
+        success: true,
+        data: [],
+        count: 0,
+        message: 'Database timeout, please try again',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching evaluators',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+});
+
 // Error handler
 app.use(errorHandler);
 
@@ -151,6 +200,7 @@ app.use('/api/*', (req, res) => {
     availableEndpoints: [
       '/api/health',
       '/api/teams',
+      '/api/evaluators/public',
       '/api/auth/*',
       '/api/admin/*',
       '/api/faculty/*',
